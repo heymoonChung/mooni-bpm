@@ -17,7 +17,6 @@ const LANES = [
   { id: 3, name: 'Cymbal', color: 'var(--neon-green)', symbol: 'CY' },
 ];
 
-// Simple Drum Sound Generator using Web Audio API
 class DrumAudio {
   private ctx: AudioContext | null = null;
 
@@ -25,6 +24,7 @@ class DrumAudio {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
+    // Mobile browsers require resume() inside a user interaction handler
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
@@ -77,20 +77,21 @@ class DrumAudio {
   }
 
   playKick() {
-    this.createOscillator(150, 'sine', 0.2, 0.8);
+    // Boosted frequency for better mobile speaker audibility
+    this.createOscillator(180, 'sine', 0.25, 1.0);
   }
 
   playSnare() {
-    this.createOscillator(250, 'triangle', 0.1, 0.5);
-    this.createNoise(0.2, 0.4, 1500);
+    this.createOscillator(300, 'triangle', 0.15, 0.7);
+    this.createNoise(0.2, 0.5, 1200);
   }
 
   playHiHat() {
-    this.createNoise(0.05, 0.3, 5000);
+    this.createNoise(0.06, 0.4, 6000);
   }
 
   playCymbal() {
-    this.createNoise(0.8, 0.2, 3000);
+    this.createNoise(1.0, 0.3, 4000);
   }
 }
 
@@ -99,29 +100,15 @@ const drum = new DrumAudio();
 const generatePattern = (): Note[] => {
   const pattern: Note[] = [];
   let noteId = 0;
-
   for (let bar = 0; bar < 8; bar++) {
     for (let beat = 0; beat < 16; beat++) {
       const time = bar * 16 + beat;
-
-      if (beat % 2 === 0) {
-        pattern.push({ id: `note-${noteId++}`, lane: 0, time });
-      }
-
-      if (beat % 4 === 2) {
-        pattern.push({ id: `note-${noteId++}`, lane: 1, time });
-      }
-
-      if (beat % 4 === 0 || (beat % 8 === 6 && bar % 2 === 1)) {
-        pattern.push({ id: `note-${noteId++}`, lane: 2, time });
-      }
-
-      if (beat === 0 && bar % 4 === 0) {
-        pattern.push({ id: `note-${noteId++}`, lane: 3, time });
-      }
+      if (beat % 2 === 0) pattern.push({ id: `note-${noteId++}`, lane: 0, time });
+      if (beat % 4 === 2) pattern.push({ id: `note-${noteId++}`, lane: 1, time });
+      if (beat % 4 === 0 || (beat % 8 === 6 && bar % 2 === 1)) pattern.push({ id: `note-${noteId++}`, lane: 2, time });
+      if (beat === 0 && bar % 4 === 0) pattern.push({ id: `note-${noteId++}`, lane: 3, time });
     }
   }
-
   return pattern;
 };
 
@@ -144,6 +131,76 @@ export default function BeatDrop() {
   const lastTimeRef = useRef<number>(0);
   const playedNotesRef = useRef<Set<string>>(new Set());
 
+  useEffect(() => {
+    const fetchOnsetSimulation = async () => {
+      setIsAnalyzing(true);
+      setTimeout(() => {
+        setNotes(generatePattern());
+        setBpm(currentTrack?.bpm || 120);
+        setIsAnalyzing(false);
+      }, 1200);
+    };
+    fetchOnsetSimulation();
+  }, [currentTrack]);
+
+  // Audio Sync
+  useEffect(() => {
+    if (isPlaying && !isMuted) {
+      notes.forEach(note => {
+        if (note.time <= currentTime && !playedNotesRef.current.has(note.id)) {
+          playedNotesRef.current.add(note.id);
+          if (note.lane === 0) drum.playHiHat();
+          if (note.lane === 1) drum.playSnare();
+          if (note.lane === 2) drum.playKick();
+          if (note.lane === 3) drum.playCymbal();
+        }
+      });
+    }
+  }, [currentTime, isPlaying, isMuted, notes]);
+
+  useEffect(() => {
+    if (isPlaying) {
+      const animate = (timestamp: number) => {
+        if (!lastTimeRef.current) lastTimeRef.current = timestamp;
+        const deltaTime = timestamp - lastTimeRef.current;
+        const beatsPerSecond = bpm / 60;
+        const increment = (deltaTime / 1000) * beatsPerSecond * 4;
+
+        setCurrentTime((prev) => {
+          const newTime = prev + increment;
+          if (newTime >= 128) {
+            playedNotesRef.current.clear();
+            return loopEnabled ? 0 : 128;
+          }
+          return newTime;
+        });
+
+        lastTimeRef.current = timestamp;
+        animationRef.current = requestAnimationFrame(animate);
+      };
+      animationRef.current = requestAnimationFrame(animate);
+    } else {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      lastTimeRef.current = 0;
+    }
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [isPlaying, bpm, loopEnabled]);
+
+  const togglePlay = () => {
+    if (!isPlaying) {
+      drum.init(); // CRITICAL: Initialize inside user interaction
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleReset = () => {
+    setCurrentTime(0);
+    setIsPlaying(false);
+    playedNotesRef.current.clear();
+  };
+
   const handleFinishPractice = () => {
     if (!finishMood) return;
     const duration = Math.floor(Math.random() * 30) + 15;
@@ -165,83 +222,6 @@ export default function BeatDrop() {
     navigate('/progress');
   };
 
-  useEffect(() => {
-    const fetchOnsetSimulation = async () => {
-      setIsAnalyzing(true);
-      setTimeout(() => {
-        setNotes(generatePattern());
-        setBpm(currentTrack?.bpm || 120);
-        setIsAnalyzing(false);
-      }, 1500);
-    };
-    fetchOnsetSimulation();
-  }, [currentTrack]);
-
-  // Audio Playback Sync
-  useEffect(() => {
-    if (isPlaying && !isMuted) {
-      const hitLineTime = currentTime;
-      notes.forEach(note => {
-        // Play sound if note hits the hit-line (with small tolerance)
-        if (note.time <= hitLineTime && !playedNotesRef.current.has(note.id)) {
-          playedNotesRef.current.add(note.id);
-          if (note.lane === 0) drum.playHiHat();
-          if (note.lane === 1) drum.playSnare();
-          if (note.lane === 2) drum.playKick();
-          if (note.lane === 3) drum.playCymbal();
-        }
-      });
-    }
-  }, [currentTime, isPlaying, isMuted, notes]);
-
-  useEffect(() => {
-    if (isPlaying) {
-      drum.init();
-      const animate = (timestamp: number) => {
-        if (!lastTimeRef.current) lastTimeRef.current = timestamp;
-        const deltaTime = timestamp - lastTimeRef.current;
-
-        const beatsPerSecond = bpm / 60;
-        // Speed up factor to match visual window
-        const increment = (deltaTime / 1000) * beatsPerSecond * 4;
-
-        setCurrentTime((prev) => {
-          const newTime = prev + increment;
-          if (newTime >= 128) {
-            playedNotesRef.current.clear();
-            return loopEnabled ? 0 : 128;
-          }
-          return newTime;
-        });
-
-        lastTimeRef.current = timestamp;
-        animationRef.current = requestAnimationFrame(animate);
-      };
-
-      animationRef.current = requestAnimationFrame(animate);
-    } else {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      lastTimeRef.current = 0;
-    }
-
-    return () => {
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    };
-  }, [isPlaying, bpm, loopEnabled]);
-
-  const handleReset = () => {
-    setCurrentTime(0);
-    setIsPlaying(false);
-    playedNotesRef.current.clear();
-  };
-
-  const getVisibleNotes = () => {
-    const windowSize = 32;
-    return notes.filter(
-      (note) => note.time >= currentTime && note.time < currentTime + windowSize
-    );
-  };
-
   const hitLinePosition = 85;
 
   if (isAnalyzing) {
@@ -257,38 +237,27 @@ export default function BeatDrop() {
 
   return (
     <div className="h-screen flex flex-col landscape:flex-row relative">
-      {/* Tutorial Guide */}
       <AnimatePresence>
         {showGuide && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md flex items-center justify-center p-6"
-            onClick={() => setShowGuide(false)}
+            className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
+            onClick={() => {
+              drum.init(); // Unlock audio on guide close
+              setShowGuide(false);
+            }}
           >
             <div className="max-w-md space-y-6 text-center">
               <div className="w-20 h-20 bg-pink-500/20 rounded-full flex items-center justify-center mx-auto border-2 border-pink-500 shadow-[0_0_20px_var(--neon-pink)]">
-                <Play className="w-10 h-10 text-pink-500" />
+                <Volume2 className="w-10 h-10 text-pink-500" />
               </div>
-              <h3 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)' }}>Beat Drop 가이드</h3>
+              <h3 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)' }}>드럼 사운드 연습</h3>
               <p className="text-lg leading-relaxed opacity-90">
-                위에서 떨어지는 노트가 하얀색 <span className="text-white font-bold">판정선</span>에 닿을 때 맞춰서 드럼을 쳐보세요! 🥁
+                하얀 판정선에 노트가 닿을 때 <br/> 실제 드럼 소리가 함께 납니다! 🥁
               </p>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                  <span className="block text-xl mb-1">HH</span> 하이햇 (박자)
-                </div>
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                  <span className="block text-xl mb-1">SN</span> 스네어 (왼손)
-                </div>
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                  <span className="block text-xl mb-1">KK</span> 킥 (발)
-                </div>
-                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                  <span className="block text-xl mb-1">CY</span> 심벌 (포인트)
-                </div>
-              </div>
+              <p className="text-xs opacity-50">박자에 맞춰 스틱을 휘둘러보세요!</p>
               <button className="px-8 py-3 rounded-full bg-pink-500 font-bold text-lg shadow-lg">알겠어, 시작할래!</button>
             </div>
           </motion.div>
@@ -297,14 +266,7 @@ export default function BeatDrop() {
 
       <div className="px-4 py-6 flex-shrink-0 landscape:w-1/3 landscape:flex landscape:flex-col landscape:justify-center">
         <div className="flex items-center justify-between mb-2">
-          <h2
-            className="text-2xl"
-            style={{
-              color: 'var(--neon-pink)',
-              fontWeight: 'var(--font-weight-medium)',
-              textShadow: '0 0 10px var(--neon-pink)',
-            }}
-          >
+          <h2 className="text-2xl" style={{ color: 'var(--neon-pink)', fontWeight: 'var(--font-weight-medium)', textShadow: '0 0 10px var(--neon-pink)' }}>
             Beat Drop
           </h2>
           <button onClick={() => setShowGuide(true)} className="opacity-50 hover:opacity-100 transition-opacity">
@@ -313,15 +275,9 @@ export default function BeatDrop() {
         </div>
         <div className="flex items-center justify-between">
           <div className="text-sm opacity-70" style={{ color: 'var(--neon-cyan)' }}>
-            {currentTrack?.title || 'Superstition'} - {currentTrack?.artist || 'Stevie Wonder'}
+            {currentTrack?.title || '곡을 선택해주세요'} - {currentTrack?.artist || 'Unknown'}
           </div>
-          <div
-            className="text-sm px-3 py-1 rounded-full"
-            style={{
-              background: 'rgba(255, 0, 255, 0.2)',
-              color: 'var(--neon-pink)',
-            }}
-          >
+          <div className="text-sm px-3 py-1 rounded-full" style={{ background: 'rgba(255, 0, 255, 0.2)', color: 'var(--neon-pink)' }}>
             {bpm} BPM
           </div>
         </div>
@@ -330,185 +286,67 @@ export default function BeatDrop() {
       <div className="flex-1 relative overflow-hidden" style={{ background: 'var(--dark-surface)' }}>
         <div className="absolute inset-0 grid grid-cols-4 gap-px">
           {LANES.map((lane) => (
-            <div
-              key={lane.id}
-              className="relative"
-              style={{
-                background: `linear-gradient(180deg, transparent, ${lane.color}05)`,
-                borderLeft: `1px solid ${lane.color}20`,
-              }}
-            >
-              <div
-                className="absolute top-4 left-1/2 -translate-x-1/2 text-xs px-2 py-1 rounded-lg"
-                style={{
-                  background: `${lane.color}30`,
-                  color: lane.color,
-                  fontWeight: 'var(--font-weight-medium)',
-                }}
-              >
+            <div key={lane.id} className="relative" style={{ background: `linear-gradient(180deg, transparent, ${lane.color}05)`, borderLeft: `1px solid ${lane.color}20` }}>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 text-xs px-2 py-1 rounded-lg" style={{ background: `${lane.color}30`, color: lane.color, fontWeight: 'var(--font-weight-medium)' }}>
                 {lane.symbol}
               </div>
-
               <AnimatePresence>
-                {getVisibleNotes()
-                  .filter((note) => note.lane === lane.id)
-                  .map((note) => {
-                    const progress = ((note.time - currentTime) / 32) * 100;
-                    const yPosition = hitLinePosition - progress;
-
-                    return (
-                      <motion.div
-                        key={note.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute left-1/2 -translate-x-1/2 w-12 h-6 rounded-lg"
-                        style={{
-                          top: `${yPosition}%`,
-                          background: lane.color,
-                          boxShadow: `0 0 15px ${lane.color}`,
-                          border: `2px solid white`,
-                        }}
-                      />
-                    );
-                  })}
+                {notes.filter(n => n.lane === lane.id && n.time >= currentTime && n.time < currentTime + 32).map((note) => {
+                  const progress = ((note.time - currentTime) / 32) * 100;
+                  const yPosition = hitLinePosition - progress;
+                  return (
+                    <motion.div key={note.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute left-1/2 -translate-x-1/2 w-12 h-6 rounded-lg"
+                      style={{ top: `${yPosition}%`, background: lane.color, boxShadow: `0 0 15px ${lane.color}`, border: `2px solid white` }}
+                    />
+                  );
+                })}
               </AnimatePresence>
             </div>
           ))}
         </div>
-
-        <div
-          className="absolute left-0 right-0 h-1"
-          style={{
-            top: `${hitLinePosition}%`,
-            background: 'linear-gradient(90deg, transparent, white, transparent)',
-            boxShadow: '0 0 20px white, 0 0 40px var(--neon-pink)',
-            zIndex: 10,
-          }}
-        />
-
-        <div
-          className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
-          style={{
-            background: 'linear-gradient(to top, var(--dark-surface), transparent)',
-          }}
-        />
+        <div className="absolute left-0 right-0 h-1" style={{ top: `${hitLinePosition}%`, background: 'linear-gradient(90deg, transparent, white, transparent)', boxShadow: '0 0 20px white, 0 0 40px var(--neon-pink)', zIndex: 10 }} />
       </div>
 
       <div className="px-4 py-6 flex-shrink-0 space-y-4">
         <div className="flex items-center gap-3">
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            style={{
-              background: isPlaying
-                ? 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))'
-                : 'rgba(255, 61, 143, 0.2)',
-              border: '2px solid var(--neon-pink)',
-              boxShadow: isPlaying ? '0 0 20px var(--neon-pink)' : 'none',
-            }}
-          >
-            {isPlaying ? (
-              <Pause className="w-7 h-7 text-white" />
-            ) : (
-              <Play className="w-7 h-7 text-white" />
-            )}
+          <motion.button whileTap={{ scale: 0.95 }} onClick={togglePlay} className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{ background: isPlaying ? 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))' : 'rgba(255, 61, 143, 0.2)', border: '2px solid var(--neon-pink)', boxShadow: isPlaying ? '0 0 20px var(--neon-pink)' : 'none' }}>
+            {isPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
           </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsMuted(!isMuted)}
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
-            style={{
-              background: isMuted ? 'rgba(255,255,255,0.05)' : 'rgba(95, 251, 241, 0.1)',
-              border: '1px solid var(--neon-cyan)',
-            }}
-          >
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => setIsMuted(!isMuted)} className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: isMuted ? 'rgba(255,255,255,0.05)' : 'rgba(95, 251, 241, 0.1)', border: '1px solid var(--neon-cyan)' }}>
             {isMuted ? <VolumeX className="w-5 h-5 text-gray-500" /> : <Volume2 className="w-5 h-5" style={{ color: 'var(--neon-cyan)' }} />}
           </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleReset}
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.2)',
-            }}
-          >
+          <motion.button whileTap={{ scale: 0.95 }} onClick={handleReset} className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)' }}>
             <RotateCcw className="w-5 h-5 opacity-60" />
           </motion.button>
-
           <div className="flex-1 text-right">
-            <div className="text-[10px] opacity-60 mb-1" style={{ color: 'var(--neon-cyan)' }}>
-              Tempo {bpm}
-            </div>
-            <input
-              type="range"
-              min="60"
-              max="180"
-              value={bpm}
-              onChange={(e) => setBpm(Number(e.target.value))}
-              className="w-full h-1"
-              style={{
-                background: `linear-gradient(to right, var(--neon-pink) 0%, var(--neon-pink) ${((bpm - 60) / 120) * 100}%, rgba(255, 0, 255, 0.2) ${((bpm - 60) / 120) * 100}%, rgba(255, 0, 255, 0.2) 100%)`,
-              }}
-            />
+            <div className="text-[10px] opacity-60 mb-1" style={{ color: 'var(--neon-cyan)' }}>Tempo {bpm}</div>
+            <input type="range" min="60" max="180" value={bpm} onChange={(e) => setBpm(Number(e.target.value))} className="w-full h-1"
+              style={{ background: `linear-gradient(to right, var(--neon-pink) 0%, var(--neon-pink) ${((bpm - 60) / 120) * 100}%, rgba(255, 0, 255, 0.2) ${((bpm - 60) / 120) * 100}%, rgba(255, 0, 255, 0.2) 100%)` }} />
           </div>
         </div>
-
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={() => setShowFinishModal(true)}
-          className="w-full py-4 rounded-xl text-white font-medium"
-          style={{
-            background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-green))',
-            boxShadow: '0 0 15px rgba(0, 255, 136, 0.4)'
-          }}
-        >
+        <motion.button whileTap={{ scale: 0.98 }} onClick={() => setShowFinishModal(true)} className="w-full py-4 rounded-xl text-white font-medium"
+          style={{ background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-green))', boxShadow: '0 0 15px rgba(0, 255, 136, 0.4)' }}>
           연습 종료 및 기록하기
         </motion.button>
       </div>
 
       <AnimatePresence>
         {showFinishModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-sm rounded-3xl p-6 space-y-6"
-              style={{ background: 'var(--dark-bg)', border: '1px solid var(--neon-pink)', boxShadow: '0 0 30px rgba(255, 0, 255, 0.2)' }}
-            >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm rounded-3xl p-6 space-y-6"
+              style={{ background: 'var(--dark-bg)', border: '1px solid var(--neon-pink)', boxShadow: '0 0 30px rgba(255, 0, 255, 0.2)' }}>
               <h3 className="text-2xl font-medium text-center" style={{ color: 'var(--neon-pink)' }}>오늘 연습 어땠어?</h3>
-              
               <div className="flex justify-center gap-3 text-3xl">
                 {['😊', '😎', '🔥', '😅'].map(mood => (
-                  <button 
-                    key={mood}
-                    onClick={() => setFinishMood(mood)}
-                    className="p-2 rounded-full hover:bg-white/10 transition-colors"
-                    style={{ background: finishMood === mood ? 'rgba(255, 0, 255, 0.3)' : 'transparent' }}
-                  >
-                    {mood}
-                  </button>
+                  <button key={mood} onClick={() => setFinishMood(mood)} className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                    style={{ background: finishMood === mood ? 'rgba(255, 0, 255, 0.3)' : 'transparent' }}>{mood}</button>
                 ))}
               </div>
-
-              <button
-                onClick={handleFinishPractice}
-                disabled={!finishMood}
-                className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-50"
-                style={{ background: 'var(--neon-pink)' }}
-              >
-                저장하기
-              </button>
+              <button onClick={handleFinishPractice} disabled={!finishMood} className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-50"
+                style={{ background: 'var(--neon-pink)' }}>저장하기</button>
             </motion.div>
           </motion.div>
         )}
