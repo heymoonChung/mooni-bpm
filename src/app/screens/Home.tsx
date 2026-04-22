@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, useAnimationFrame } from 'motion/react';
-import { Heart, Play, Drum } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Heart, Play, Clock, Award, Drum } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useTrack } from '../context/TrackContext';
 
