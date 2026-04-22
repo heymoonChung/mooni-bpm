@@ -35,20 +35,6 @@ export default function Home() {
         >
           {/* Animated YUNI.BPM Title */}
           <style>{`
-            @keyframes neonFlicker {
-              0%,19%,21%,23%,25%,54%,56%,100% {
-                text-shadow:
-                  0 0 10px #ff3d8f,
-                  0 0 25px #ff3d8f,
-                  0 0 50px #ff3d8f,
-                  0 0 100px #ff3d8f;
-                color: #ff3d8f;
-              }
-              20%,24%,55% {
-                text-shadow: none;
-                color: rgba(255,61,143,0.4);
-              }
-            }
             @keyframes rainbowShift {
               0%   { color: #ff3d8f; text-shadow: 0 0 20px #ff3d8f, 0 0 50px #ff3d8f; }
               25%  { color: #5ffbf1; text-shadow: 0 0 20px #5ffbf1, 0 0 50px #5ffbf1; }
@@ -59,6 +45,11 @@ export default function Home() {
             @keyframes pulse-glow {
               0%, 100% { filter: drop-shadow(0 0 8px #ff3d8f); }
               50%       { filter: drop-shadow(0 0 20px #5ffbf1); }
+            }
+            @keyframes spin-border {
+              0%   { background-position: 0% 50%; }
+              50%  { background-position: 100% 50%; }
+              100% { background-position: 0% 50%; }
             }
             .yuni-title {
               animation: rainbowShift 3s ease-in-out infinite;
@@ -71,14 +62,50 @@ export default function Home() {
             .yuni-heart {
               animation: pulse-glow 1.5s ease-in-out infinite;
             }
+            .insta-ring {
+              background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888, #5ffbf1, #ff3d8f);
+              background-size: 300% 300%;
+              animation: spin-border 3s ease infinite;
+              border-radius: 50%;
+              padding: 3px;
+            }
+            .insta-inner {
+              background: var(--dark-bg);
+              border-radius: 50%;
+              padding: 2px;
+            }
           `}</style>
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Heart className="yuni-heart w-10 h-10" style={{ color: 'var(--neon-pink)' }} fill="var(--neon-pink)" />
-            <h1 className="yuni-title">YUNI.BPM</h1>
-            <Drum className="yuni-heart w-8 h-8" style={{ color: 'var(--neon-cyan)' }} />
+
+          {/* Profile + Title row */}
+          <div className="flex items-center gap-4 mb-3">
+            {/* Instagram-style circular photo */}
+            <div className="insta-ring flex-shrink-0">
+              <div className="insta-inner">
+                <img
+                  src="/yuni.jpg"
+                  alt="Yuni"
+                  className="w-16 h-16 rounded-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://api.dicebear.com/8.x/thumbs/svg?seed=yuni&backgroundColor=ff3d8f';
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Title */}
+            <div className="text-left">
+              <div className="flex items-center gap-2 mb-1">
+                <h1 className="yuni-title" style={{ fontSize: '2.2rem' }}>YUNI.BPM</h1>
+                <Drum className="yuni-heart w-7 h-7" style={{ color: 'var(--neon-cyan)' }} />
+              </div>
+              <p className="text-xs opacity-80" style={{ color: 'var(--neon-pink)' }}>
+                Mom loves your drumming the most! 💖
+              </p>
+            </div>
           </div>
-          <p className="text-lg mb-2" style={{ color: 'var(--neon-cyan)', textShadow: '0 0 10px var(--neon-cyan)' }}>
-            {dailyMessage || "유니의 드럼 연습 파트너 ✨"}
+
+          <p className="text-sm mb-2 text-center" style={{ color: 'var(--neon-cyan)', textShadow: '0 0 8px var(--neon-cyan)' }}>
+            {dailyMessage.replace('유니의 드럼 소리 엄마가 제일 좋아해! 🎵', "Mom loves your drumming the most! 🎵") || "Your drum practice partner ✨"}
           </p>
         </motion.div>
 
