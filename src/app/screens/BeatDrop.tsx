@@ -18,7 +18,7 @@ const LANES = [
 ];
 
 class DrumAudio {
-  private ctx: AudioContext | null = null;
+  public ctx: AudioContext | null = null;
 
   init() {
     if (!this.ctx) {
@@ -27,23 +27,27 @@ class DrumAudio {
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
+    // Force a tiny silent sound to unlock iOS/Safari audio
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.0001;
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(0);
+    osc.stop(0.01);
   }
 
   private createOscillator(freq: number, type: OscillatorType, duration: number, volume: number) {
     if (!this.ctx || this.ctx.state !== 'running') return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
-
     osc.type = type;
     osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
     gain.gain.setValueAtTime(volume, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
     osc.connect(gain);
     gain.connect(this.ctx.destination);
-
     osc.start();
     osc.stop(this.ctx.currentTime + duration);
   }
@@ -53,33 +57,23 @@ class DrumAudio {
     const bufferSize = this.ctx.sampleRate * duration;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
-
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
-
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'highpass';
     filter.frequency.value = highPass;
-
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(volume, this.ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-
     source.connect(filter);
     filter.connect(gain);
     gain.connect(this.ctx.destination);
-
     source.start();
   }
 
   playKick() { this.createOscillator(160, 'sine', 0.2, 1.0); }
-  playSnare() { 
-    this.createOscillator(280, 'triangle', 0.1, 0.6); 
-    this.createNoise(0.2, 0.4, 1000);
-  }
+  playSnare() { this.createOscillator(280, 'triangle', 0.1, 0.6); this.createNoise(0.2, 0.4, 1000); }
   playHiHat() { this.createNoise(0.05, 0.3, 5000); }
   playCymbal() { this.createNoise(0.8, 0.2, 3000); }
 }
@@ -112,7 +106,6 @@ export default function BeatDrop() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(true);
   const [showGuide, setShowGuide] = useState(true);
-  
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishMood, setFinishMood] = useState<string | null>(null);
 
@@ -127,25 +120,20 @@ export default function BeatDrop() {
         setNotes(generatePattern());
         setBpm(currentTrack?.bpm || 120);
         setIsAnalyzing(false);
-      }, 1000);
+      }, 800);
     };
     fetchOnsetSimulation();
   }, [currentTrack]);
 
-  // Combined Animation and Sound Triggering for Mobile Robustness
   useEffect(() => {
     if (isPlaying) {
-      drum.init();
       const animate = (timestamp: number) => {
         if (!lastTimeRef.current) lastTimeRef.current = timestamp;
         const deltaTime = timestamp - lastTimeRef.current;
         const beatsPerSecond = bpm / 60;
         const increment = (deltaTime / 1000) * beatsPerSecond * 4;
-
         setCurrentTime((prev) => {
           const newTime = prev + increment;
-          
-          // Trigger sounds within the loop for frame-perfect sync
           if (!isMuted) {
             notes.forEach(note => {
               if (note.time <= newTime && !playedNotesRef.current.has(note.id)) {
@@ -157,14 +145,12 @@ export default function BeatDrop() {
               }
             });
           }
-
           if (newTime >= 128) {
             playedNotesRef.current.clear();
             return loopEnabled ? 0 : 128;
           }
           return newTime;
         });
-
         lastTimeRef.current = timestamp;
         animationRef.current = requestAnimationFrame(animate);
       };
@@ -178,8 +164,13 @@ export default function BeatDrop() {
     };
   }, [isPlaying, bpm, loopEnabled, isMuted, notes]);
 
+  const handleStart = () => {
+    drum.init(); // Directly call in event handler
+    setShowGuide(false);
+  };
+
   const togglePlay = () => {
-    drum.init();
+    drum.init(); // Directly call in event handler
     setIsPlaying(!isPlaying);
   };
 
@@ -211,9 +202,7 @@ export default function BeatDrop() {
     return (
       <div className="h-screen flex flex-col items-center justify-center space-y-6">
         <Loader2 className="w-16 h-16 animate-spin" style={{ color: 'var(--neon-pink)' }} />
-        <div className="text-xl" style={{ color: 'var(--neon-pink)', fontWeight: 'var(--font-weight-medium)' }}>
-          박자 분석 중... 🥁
-        </div>
+        <div className="text-xl" style={{ color: 'var(--neon-pink)', fontWeight: 'var(--font-weight-medium)' }}>박자 분석 중... 🥁</div>
       </div>
     );
   }
@@ -222,15 +211,15 @@ export default function BeatDrop() {
     <div className="h-screen flex flex-col landscape:flex-row relative">
       <AnimatePresence>
         {showGuide && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-6"
-            onClick={() => { drum.init(); setShowGuide(false); }}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6"
+            onClick={handleStart}>
             <div className="max-w-md space-y-6 text-center">
-              <div className="w-20 h-20 bg-pink-500/20 rounded-full flex items-center justify-center mx-auto border-2 border-pink-500 shadow-[0_0_20px_var(--neon-pink)]">
-                <Volume2 className="w-10 h-10 text-pink-500" />
+              <div className="w-24 h-24 bg-pink-500/20 rounded-full flex items-center justify-center mx-auto border-4 border-pink-500 shadow-[0_0_30px_var(--neon-pink)]">
+                <Volume2 className="w-12 h-12 text-pink-500" />
               </div>
-              <h3 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)' }}>Beat Drop 가이드</h3>
-              <p className="text-lg leading-relaxed opacity-90">선에 맞춰 떨어지는 노트를 <br/> 드럼 소리와 함께 연습해보세요! 🥁</p>
-              <button className="px-8 py-3 rounded-full bg-pink-500 font-bold text-lg shadow-lg">시작하기</button>
+              <h3 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)' }}>사운드 활성화</h3>
+              <p className="text-lg leading-relaxed opacity-90">유니의 드럼 소리를 들으려면 <br/> 아래 버튼을 눌러주세요! 🥁</p>
+              <button onClick={handleStart} className="px-10 py-4 rounded-full bg-pink-500 font-bold text-xl shadow-lg active:scale-95 transition-transform">소리 켜고 시작하기</button>
             </div>
           </motion.div>
         )}
@@ -306,6 +295,14 @@ export default function BeatDrop() {
               </div>
               <button onClick={handleFinishPractice} disabled={!finishMood} className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-50"
                 style={{ background: 'var(--neon-pink)' }}>저장하기</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+           style={{ background: 'var(--neon-pink)' }}>저장하기</button>
             </motion.div>
           </motion.div>
         )}
