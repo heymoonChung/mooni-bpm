@@ -14,11 +14,7 @@ interface TrackContextType {
 const TrackContext = createContext<TrackContextType | undefined>(undefined);
 
 export function TrackProvider({ children }: { children: ReactNode }) {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>({
-    title: 'Superstition',
-    artist: 'Stevie Wonder',
-    bpm: 120
-  });
+  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
 
   return (
     <TrackContext.Provider value={{ currentTrack, setCurrentTrack }}>

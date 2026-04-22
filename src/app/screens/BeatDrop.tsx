@@ -38,7 +38,7 @@ class DrumAudio {
   }
 
   private createOscillator(freq: number, type: OscillatorType, duration: number, volume: number) {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.ctx) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = type;
@@ -53,7 +53,7 @@ class DrumAudio {
   }
 
   private createNoise(duration: number, volume: number, highPass: number = 1000) {
-    if (!this.ctx || this.ctx.state !== 'running') return;
+    if (!this.ctx) return;
     const bufferSize = this.ctx.sampleRate * duration;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
