@@ -27,15 +27,14 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: '8mZpCHu_rsw', title: 'Tower of Power - What is Hip? (Funk Legend)' },
-  { id: 'qmOLtTGvsbM', title: 'Toto - Rosanna (Half-time Shuffle)' },
-  { id: 'T9vR_iS02oE', title: 'Casiopea - Asayake (J-Fusion Classic)' },
-  { id: 'I7m-mJ40LhE', title: 'Steely Dan - Aja (Steve Gadd Masterpiece)' },
-  { id: 'L_XJ_s5IsQc', title: 'Snarky Puppy - Lingus (Modern Technical)' },
-  { id: 'Y7vG-ZqA4Z4', title: 'Dave Weckl - Festival de Ritmos (Rudiments)' },
-  { id: 'I2PpgWh5n94', title: 'Vulfpeck - It Gets Funkier (Pocket Groove)' },
-  { id: '6vY8rZ_xV-8', title: 'Dirty Loops - Coffee Break (Technical Pop)' },
-  { id: 'qN4ooNx77u0', title: 'Harry Styles - Sign of the Times (Rock Ballad)' }
+  { id: 'G8VFOIzkg-M', title: 'Tower of Power - What is Hip? (Live Funk)' },
+  { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna (Live Shuffle)' },
+  { id: 'r7jkrDBkMGI', title: 'Casiopea - Asayake (Live Classic)' },
+  { id: 'Py0FdS-e960', title: 'Steely Dan - Aja (Steve Gadd Session)' },
+  { id: 'Nq5LMGtBmis', title: 'Vulfpeck - It Gets Funkier (Louis Cole)' },
+  { id: '5jDVZPzfS1c', title: 'Dave Weckl - Festival de Ritmos (Technical)' },
+  { id: 'aYYFmp9NBTk', title: 'Dirty Loops - Coffee Break (Modern Funk)' },
+  { id: 'Let9P-85z3U', title: 'Harry Styles - Sign of the Times (Drum Cover)' }
 ];
 
 // ── YouTube Helpers ────────────────────────────────────────────────────────
