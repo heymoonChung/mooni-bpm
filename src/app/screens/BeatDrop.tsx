@@ -431,22 +431,39 @@ export default function BeatDrop() {
       <div className="flex-1 relative overflow-hidden mx-4 rounded-3xl bg-black/40 border border-white/5">
         <div className="absolute inset-0 grid grid-cols-4">
           {LANES.map(lane => (
-            <div key={lane.id} className="relative flex flex-col border-l border-white/5">
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] font-bold px-2 py-0.5 rounded-full z-10" style={{ background: `${lane.color}25`, color: lane.color }}>{lane.symbol}</div>
+            <div key={lane.id} className="relative flex flex-col border-r border-white/10"
+              style={{ borderRightColor: `${lane.color}20` }}>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] font-bold px-2 py-0.5 rounded-full z-10" 
+                style={{ background: `${lane.color}15`, color: lane.color, border: `1px solid ${lane.color}30` }}>
+                {lane.symbol}
+              </div>
               <AnimatePresence>
                 {notes.filter(n => n.lane === lane.id && n.time >= currentTime && n.time < currentTime + 32).map(note => {
                   const pct = ((note.time - currentTime) / 32) * 100;
                   return (
                     <motion.div key={note.id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                      className="absolute left-1/2 -translate-x-1/2 rounded-full"
-                      style={{ top: `${hitLine - pct}%`, width: 36, height: 12, background: lane.color, boxShadow: `0 0 15px ${lane.color}`, border: '1.5px solid rgba(255,255,255,0.5)' }} />
+                      className="absolute left-1/2 -translate-x-1/2 rounded-full backdrop-blur-[2px]"
+                      style={{ 
+                        top: `${hitLine - pct}%`, 
+                        width: 40, 
+                        height: 14, 
+                        background: `${lane.color}44`, 
+                        boxShadow: `0 0 20px ${lane.color}66, inset 0 0 10px ${lane.color}`, 
+                        border: `1.5px solid ${lane.color}88` 
+                      }} />
                   );
                 })}
               </AnimatePresence>
             </div>
           ))}
         </div>
-        <div className="absolute left-0 right-0 h-[3px] bg-white z-10" style={{ top: `${hitLine}%`, boxShadow: '0 0 20px white' }} />
+        {/* Hit Line - Neon Beam */}
+        <div className="absolute left-0 right-0 h-[2px] z-10" 
+          style={{ 
+            top: `${hitLine}%`, 
+            background: 'linear-gradient(90deg, transparent, white, transparent)',
+            boxShadow: '0 0 15px rgba(255,255,255,0.8), 0 0 30px rgba(0,255,255,0.5)' 
+          }} />
       </div>
       <div className="p-8 flex-shrink-0 space-y-8">
         <div className="flex items-center justify-center gap-10">
