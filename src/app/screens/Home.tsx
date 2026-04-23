@@ -98,15 +98,14 @@ export default function Home() {
                 <h1 className="yuni-title" style={{ fontSize: '2.2rem' }}>YUNI.BPM</h1>
                 <Drum className="yuni-heart w-7 h-7" style={{ color: 'var(--neon-cyan)' }} />
               </div>
-              <p className="text-xs opacity-80" style={{ color: 'var(--neon-pink)' }}>
+              <p className="text-xs opacity-80 mb-1" style={{ color: 'var(--neon-pink)' }}>
                 Mom loves your drumming the most! 💖
+              </p>
+              <p className="text-xs opacity-70" style={{ color: 'var(--neon-cyan)' }}>
+                {dailyMessage || "Yuni's Personal Drum Practice App 🥁"}
               </p>
             </div>
           </div>
-
-          <p className="text-xs mb-2 text-center opacity-70" style={{ color: 'var(--neon-cyan)' }}>
-            {dailyMessage || "Yuni's Personal Drum Practice App 🥁"}
-          </p>
         </motion.div>
 
         <motion.div
