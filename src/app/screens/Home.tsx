@@ -5,9 +5,9 @@ import { useNavigate } from 'react-router';
 import { useTrack } from '../context/TrackContext';
 
 const CHEERING_MESSAGES = [
-  "Yuni's Personal Drum Practice App 🥁",
+  "Mooni's Personal Drum Practice App 🥁",
   "Your dedicated drum training companion 🎵",
-  "Keep the beat going, Yuni! ✨",
+  "Keep the beat going, Mooni! ✨",
   "Every great drummer started just like you! 💪",
   "One beat at a time — you've got this! 🌟"
 ];
@@ -25,7 +25,7 @@ export default function Home() {
     setDailyMessage(CHEERING_MESSAGES[messageIndex]);
 
     // Calculate real stats from logs
-    const logs = JSON.parse(localStorage.getItem('yuni_practice_logs') || '[]');
+    const logs = JSON.parse(localStorage.getItem('mooni_practice_logs') || '[]');
     if (logs.length > 0) {
       // 1. Total Minutes
       const total = logs.reduce((sum: number, log: any) => sum + (Number(log.duration) || 0), 0);
@@ -84,7 +84,7 @@ export default function Home() {
               50%  { background-position: 100% 50%; }
               100% { background-position: 0% 50%; }
             }
-            .yuni-title {
+            .mooni-title {
               animation: rainbowShift 3s ease-in-out infinite;
               font-size: 3rem;
               letter-spacing: 0.1em;
@@ -92,7 +92,7 @@ export default function Home() {
               cursor: default;
               user-select: none;
             }
-            .yuni-heart {
+            .mooni-heart {
               animation: pulse-glow 1.5s ease-in-out infinite;
             }
             .insta-ring {
@@ -115,7 +115,7 @@ export default function Home() {
             <div className="insta-ring flex-shrink-0">
               <div className="insta-inner">
                 <video
-                  src="/yuni.mp4"
+                  src="/mooni.mp4"
                   autoPlay
                   loop
                   muted
@@ -128,14 +128,11 @@ export default function Home() {
             {/* Title */}
             <div className="text-left">
               <div className="flex items-center gap-2 mb-1">
-                <h1 className="yuni-title" style={{ fontSize: '2.2rem' }}>YUNI.BPM</h1>
-                <Drum className="yuni-heart w-7 h-7" style={{ color: 'var(--neon-cyan)' }} />
+                <h1 className="mooni-title" style={{ fontSize: '2.2rem' }}>MOONI.BPM</h1>
+                <Drum className="mooni-heart w-7 h-7" style={{ color: 'var(--neon-cyan)' }} />
               </div>
-              <p className="text-xs opacity-80 mb-1" style={{ color: 'var(--neon-pink)' }}>
-                Mom loves your drumming the most! 💖
-              </p>
               <p className="text-xs opacity-70" style={{ color: 'var(--neon-cyan)' }}>
-                {dailyMessage || "Yuni's Personal Drum Practice App 🥁"}
+                {dailyMessage || "Mooni's Personal Drum Practice App 🥁"}
               </p>
             </div>
           </div>

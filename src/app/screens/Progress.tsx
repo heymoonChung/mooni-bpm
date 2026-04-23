@@ -18,7 +18,7 @@ export default function Progress() {
   const [practiceLogs, setPracticeLogs] = useState<PracticeLog[]>([]);
 
   useEffect(() => {
-    const savedLogs = localStorage.getItem('yuni_practice_logs');
+    const savedLogs = localStorage.getItem('mooni_practice_logs');
     if (savedLogs) {
       setPracticeLogs(JSON.parse(savedLogs));
     }
@@ -26,7 +26,7 @@ export default function Progress() {
 
   const handleClearLogs = () => {
     if (window.confirm('모든 연습 기록을 삭제할까요?')) {
-      localStorage.removeItem('yuni_practice_logs');
+      localStorage.removeItem('mooni_practice_logs');
       setPracticeLogs([]);
     }
   };
@@ -79,7 +79,7 @@ export default function Progress() {
           Progress & Stickers
         </h2>
         <p className="text-sm opacity-70" style={{ color: 'var(--foreground)' }}>
-          유니의 성장 일지
+          무니의 성장 일지
         </p>
       </motion.div>
 
@@ -270,7 +270,7 @@ export default function Progress() {
             fontWeight: 'var(--font-weight-medium)',
           }}
         >
-          Keep Going, Yuni!
+          Keep Going, Mooni!
         </div>
         <p className="text-sm opacity-70" style={{ color: 'var(--foreground)' }}>
           이번 주 4일 연습 완료! 목표까지 3일 남았어요

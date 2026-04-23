@@ -27,7 +27,7 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: 'I_vTIs7nC0A', title: '아기 다람쥐 또미 (유니 전용)', artist: 'Children' },
+  { id: 'I_vTIs7nC0A', title: '아기 다람쥐 또미 (무니 전용)', artist: 'Children' },
   { id: 'Y8-0K98xO80', title: 'Super Mario Theme (Drum Ver.)', artist: 'Game' },
   { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna (Classic)', artist: 'Rock' },
   { id: 'G8VFOIzkg-M', title: 'What is Hip? (Funk)', artist: 'Funk' }
@@ -314,8 +314,8 @@ export default function BeatDrop() {
   const handleFinish = () => {
     if (!finishMood) return;
     const log = { date: new Date().toISOString().split('T')[0], mood: finishMood, duration: 15, notes: `${videoTitle} 완료!`, hasVoiceNote: false };
-    const ex = JSON.parse(localStorage.getItem('yuni_practice_logs') || '[]');
-    localStorage.setItem('yuni_practice_logs', JSON.stringify([...ex, log]));
+    const ex = JSON.parse(localStorage.getItem('mooni_practice_logs') || '[]');
+    localStorage.setItem('mooni_practice_logs', JSON.stringify([...ex, log]));
     setShowFinishModal(false); navigate('/progress');
   };
 
