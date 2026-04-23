@@ -269,43 +269,59 @@ export default function BeatDrop() {
     setLoadingTitle(false);
     setScreen('player');
     setDrumPlaying(true);
-    synth.unlock(); // Awaken audio context on click
+    synth.unlock();
   }, [urlInput, bpm, setCurrentTrack]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     setUrlError('');
+    synth.unlock(); // Awaken audio context early on user click
+
+    const query = encodeURIComponent(searchQuery);
+
+    // Try local backend first
+    try {
+      const localRes = await fetch(`http://localhost:8000/api/search?q=${query}`);
+      if (localRes.ok) {
+        const data = await localRes.json();
+        if (data && data.length > 0) {
+          setSearchResults(data.slice(0, 8));
+          setIsSearching(false);
+          return;
+        }
+      }
+    } catch (e) { console.log("Local backend failed, trying proxy..."); }
 
     try {
-      const targetUrl = `https://api.piped.private.coffee/search?q=${encodeURIComponent(searchQuery)}&filter=all`;
+      const targetUrl = `https://api.piped.private.coffee/search?q=${query}&filter=all`;
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
       const res = await fetch(proxyUrl);
-      if (!res.ok) throw new Error('Search failed');
+      if (res.ok) {
+        const wrapper = await res.json();
+        const data = JSON.parse(wrapper.contents);
+        const items = (data.items || []).filter((i: any) => i.type === 'stream');
 
-      const wrapper = await res.json();
-      const data = JSON.parse(wrapper.contents);
-      const items = (data.items || []).filter((i: any) => i.type === 'stream');
+        if (items.length > 0) {
+          const results = items.slice(0, 8).map((i: any) => ({
+            id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+            title: i.title,
+            artist: i.uploaderName || 'YouTube'
+          })).filter((r: any) => r.id && r.id.length === 11);
 
-      if (items.length > 0) {
-        const results = items.slice(0, 8).map((i: any) => ({
-          id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-          title: i.title,
-          artist: i.uploaderName || 'YouTube'
-        })).filter((r: any) => r.id && r.id.length === 11);
-
-        if (results.length > 0) {
-          setSearchResults(results);
-          setIsSearching(false);
-          return;
+          if (results.length > 0) {
+            setSearchResults(results);
+            setIsSearching(false);
+            return;
+          }
         }
       }
     } catch (e) {
       console.error("Search failed:", e);
     }
 
-    setUrlError('검색 결과를 가져오지 못했습니다. 잠시 후 다시 시도하거나 유튜브 링크를 직접 붙여넣어 주세요.');
+    setUrlError('검색 결과를 가져오지 못했습니다. 파이썬 서버(main.py)가 켜져 있는지 확인해 주세요.');
     setIsSearching(false);
   };
   
