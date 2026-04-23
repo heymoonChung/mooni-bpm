@@ -15,13 +15,41 @@ const CHEERING_MESSAGES = [
 export default function Home() {
   const navigate = useNavigate();
   const { currentTrack } = useTrack();
+  const [stats, setStats] = useState({ streak: 0, totalMinutes: 0, lastDuration: 0 });
   const [dailyMessage, setDailyMessage] = useState("");
 
   useEffect(() => {
-    // Select message based on current date to keep it consistent for the day
+    // Select message based on current date
     const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
     const messageIndex = dayOfYear % CHEERING_MESSAGES.length;
     setDailyMessage(CHEERING_MESSAGES[messageIndex]);
+
+    // Calculate real stats from logs
+    const logs = JSON.parse(localStorage.getItem('yuni_practice_logs') || '[]');
+    if (logs.length > 0) {
+      const sortedLogs = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const total = logs.reduce((sum: number, log: any) => sum + (log.duration || 0), 0);
+      
+      let streak = 0;
+      const today = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      
+      let lastDate = sortedLogs[0].date;
+      if (lastDate === today || lastDate === yesterday) {
+        streak = 1;
+        for (let i = 1; i < sortedLogs.length; i++) {
+          const d1 = new Date(sortedLogs[i-1].date);
+          const d2 = new Date(sortedLogs[i].date);
+          const diff = (d1.getTime() - d2.getTime()) / 86400000;
+          if (diff <= 1.1) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+      }
+      setStats({ streak, totalMinutes: total, lastDuration: sortedLogs[0].duration || 0 });
+    }
   }, []);
 
   return (
@@ -145,13 +173,13 @@ export default function Home() {
               <div className="flex items-center gap-1">
                 <Clock className="w-4 h-4" style={{ color: 'var(--neon-cyan)' }} />
                 <span className="text-sm" style={{ color: 'var(--neon-cyan)' }}>
-                  45min
+                  {stats.lastDuration}min
                 </span>
               </div>
               <div className="flex items-center gap-1">
                 <Award className="w-4 h-4" style={{ color: 'var(--neon-orange)' }} />
                 <span className="text-sm" style={{ color: 'var(--neon-orange)' }}>
-                  95%
+                  {stats.streak > 5 ? 'Master' : 'Rising'}
                 </span>
               </div>
             </div>
@@ -216,7 +244,7 @@ export default function Home() {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            12
+            {stats.streak}
           </div>
           <div className="text-xs opacity-70" style={{ color: 'var(--neon-green)' }}>
             Days Streak
@@ -237,7 +265,7 @@ export default function Home() {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            847
+            {stats.totalMinutes}
           </div>
           <div className="text-xs opacity-70" style={{ color: 'var(--neon-orange)' }}>
             Total Minutes
