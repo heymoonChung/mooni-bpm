@@ -114,12 +114,9 @@ export default function Home() {
             {/* Instagram-style circular photo */}
             <div className="insta-ring flex-shrink-0">
               <div className="insta-inner">
-                <video
-                  src="/mooni.mp4"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
+                <img
+                  src="/yuni.jpg"
+                  alt="Profile"
                   className="w-16 h-16 rounded-full object-cover"
                 />
               </div>
