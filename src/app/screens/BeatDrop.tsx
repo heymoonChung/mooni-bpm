@@ -286,19 +286,63 @@ export default function BeatDrop() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     setUrlError('');
-    try {
-      const res = await fetch(`https://api.piped.private.coffee/search?q=${encodeURIComponent(searchQuery + ' official')}&filter=music_songs`);
-      if (!res.ok) throw new Error('Search failed');
-      const data = await res.json();
-      const results = data.items.filter((i: any) => i.type === 'stream').slice(0, 5).map((i: any) => ({
-        id: i.url.split('?v=')[1] || i.url.split('/watch?v=')[1],
-        title: i.title,
-        artist: i.uploaderName || 'YouTube'
-      }));
-      setSearchResults(results);
-    } catch (e) {
-      console.error(e);
-      setUrlError('검색에 실패했습니다. 다른 검색어나 링크를 사용해주세요.');
+
+    // Strategy 1: yt.lemnoslife.com — YouTube Data API proxy (no key needed)
+    const tryLemnoslife = async (): Promise<{id: string, title: string, artist: string}[] | null> => {
+      try {
+        const res = await fetch(
+          `https://yt.lemnoslife.com/noKey/search?part=snippet&q=${encodeURIComponent(searchQuery)}&type=video&maxResults=8`,
+          { signal: AbortSignal.timeout(6000) }
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        const items = data.items || [];
+        const results = items.map((item: any) => ({
+          id: item.id?.videoId || '',
+          title: item.snippet?.title || '(제목 없음)',
+          artist: item.snippet?.channelTitle || 'YouTube',
+        })).filter((r: any) => r.id.length === 11);
+        return results.length > 0 ? results : null;
+      } catch {
+        return null;
+      }
+    };
+
+    // Strategy 2: Invidious instances
+    const INVIDIOUS = [
+      'https://invidious.nerdvpn.de',
+      'https://invidious.privacyredirect.com',
+      'https://inv.tux.pizza',
+    ];
+    const tryInvidious = async (): Promise<{id: string, title: string, artist: string}[] | null> => {
+      for (const host of INVIDIOUS) {
+        try {
+          const res = await fetch(
+            `${host}/api/v1/search?q=${encodeURIComponent(searchQuery)}&type=video&page=1`,
+            { signal: AbortSignal.timeout(5000) }
+          );
+          if (!res.ok) continue;
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : [];
+          const results = items.slice(0, 6).map((item: any) => ({
+            id: item.videoId || '',
+            title: item.title || '(제목 없음)',
+            artist: item.author || 'YouTube',
+          })).filter((r: any) => r.id.length === 11);
+          if (results.length > 0) return results;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    };
+
+    const found = await tryLemnoslife() ?? await tryInvidious();
+
+    if (found && found.length > 0) {
+      setSearchResults(found);
+    } else {
+      setUrlError('검색에 실패했습니다. 유튜브 링크를 직접 붙여넣기 해주세요.');
     }
     setIsSearching(false);
   };
