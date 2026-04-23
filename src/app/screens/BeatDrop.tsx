@@ -287,47 +287,67 @@ export default function BeatDrop() {
     setIsSearching(true);
     setUrlError('');
 
-    // List of Piped API instances
+    const query = encodeURIComponent(searchQuery);
     const instances = [
       'https://api.piped.private.coffee',
-      'https://pipedapi.kavin.rocks', // Fallback
+      'https://pipedapi.kavin.rocks',
       'https://piped-api.garudalinux.org'
     ];
 
     let success = false;
+
+    // Try multiple proxy strategies
+    const searchWithProxy = async (apiUrl: string) => {
+      // Strategy A: allorigins.win (Very stable)
+      try {
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`);
+        if (res.ok) {
+          const wrapper = await res.json();
+          const data = JSON.parse(wrapper.contents);
+          return data.items || [];
+        }
+      } catch (e) { console.log("Strategy A failed"); }
+
+      // Strategy B: corsproxy.io
+      try {
+        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
+        if (res.ok) {
+          const data = await res.json();
+          return data.items || [];
+        }
+      } catch (e) { console.log("Strategy B failed"); }
+
+      return null;
+    };
+
     for (const apiBase of instances) {
       try {
-        // Use CORS proxy to bypass browser restrictions
-        const targetUrl = `${apiBase}/search?q=${encodeURIComponent(searchQuery)}&filter=all`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        const apiUrl = `${apiBase}/search?q=${query}&filter=all`;
+        const items = await searchWithProxy(apiUrl);
 
-        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(7000) });
-        if (!res.ok) continue;
+        if (items && items.length > 0) {
+          const streams = items.filter((i: any) => i.type === 'stream');
+          if (streams.length > 0) {
+            const results = streams.slice(0, 8).map((i: any) => ({
+              id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+              title: i.title,
+              artist: i.uploaderName || 'YouTube'
+            })).filter((r: any) => r.id && r.id.length === 11);
 
-        const data = await res.json();
-        const items = (data.items || []).filter((i: any) => i.type === 'stream');
-
-        if (items.length > 0) {
-          const results = items.slice(0, 7).map((i: any) => ({
-            id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-            title: i.title,
-            artist: i.uploaderName || 'YouTube'
-          })).filter((r: any) => r.id && r.id.length === 11);
-
-          if (results.length > 0) {
-            setSearchResults(results);
-            success = true;
-            break;
+            if (results.length > 0) {
+              setSearchResults(results);
+              success = true;
+              break;
+            }
           }
         }
       } catch (e) {
-        console.error(`Search failed with ${apiBase}:`, e);
         continue;
       }
     }
 
     if (!success) {
-      setUrlError('검색 서버가 혼잡합니다. 잠시 후 다시 시도하거나 유튜브 링크를 직접 붙여넣어 주세요.');
+      setUrlError('검색 서버 연결에 실패했습니다. 유튜브 링크를 직접 붙여넣거나 나중에 다시 시도해 주세요.');
     }
     setIsSearching(false);
   };

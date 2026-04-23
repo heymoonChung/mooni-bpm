@@ -32,6 +32,35 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # Serve separated files
 app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 
+class SearchRequest(BaseModel):
+    query: str
+
+@app.get("/api/search")
+async def search_youtube(q: str):
+    logger.info(f"Searching for: {q}")
+    ydl_opts = {
+        'quiet': True,
+        'extract_flat': True,
+        'force_generic_extractor': True,
+        'skip_download': True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Search for top 10 entries
+            info = ydl.extract_info(f"ytsearch10:{q}", download=False)
+            results = []
+            for entry in info.get('entries', []):
+                if not entry: continue
+                results.append({
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "artist": entry.get("uploader", "YouTube")
+                })
+            return results
+    except Exception as e:
+        logger.error(f"Search error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 class ExtractRequest(BaseModel):
     url: str
 
