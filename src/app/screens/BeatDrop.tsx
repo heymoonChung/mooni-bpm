@@ -276,10 +276,11 @@ export default function BeatDrop() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     setUrlError('');
-    synth.unlock(); 
+    synth.unlock(); // User interaction to unlock audio
 
     const query = encodeURIComponent(searchQuery);
 
+    // 1. Try local backend
     try {
       const localRes = await fetch(`http://localhost:8000/api/search?q=${query}`);
       if (localRes.ok) {
@@ -290,37 +291,47 @@ export default function BeatDrop() {
           return;
         }
       }
-    } catch (e) { console.log("Local backend failed, trying proxy..."); }
+    } catch (e) { console.log("Local backend failed, trying proxies..."); }
 
-    try {
-      const targetUrl = `https://api.piped.private.coffee/search?q=${query}&filter=all`;
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+    // 2. Try multiple external proxies (for mobile)
+    const backupInstances = [
+      'https://pipedapi.kavin.rocks',
+      'https://api.piped.private.coffee',
+      'https://piped-api.garudalinux.org'
+    ];
 
-      const res = await fetch(proxyUrl);
-      if (res.ok) {
-        const wrapper = await res.json();
-        const data = JSON.parse(wrapper.contents);
-        const items = (data.items || []).filter((i: any) => i.type === 'stream');
+    for (const apiBase of backupInstances) {
+      try {
+        const targetUrl = `${apiBase}/search?q=${query}&filter=all`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
-        if (items.length > 0) {
-          const results = items.slice(0, 8).map((i: any) => ({
-            id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-            title: i.title,
-            artist: i.uploaderName || 'YouTube'
-          })).filter((r: any) => r.id && r.id.length === 11);
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const wrapper = await res.json();
+          const data = JSON.parse(wrapper.contents);
+          const items = (data.items || []).filter((i: any) => i.type === 'stream');
 
-          if (results.length > 0) {
-            setSearchResults(results);
-            setIsSearching(false);
-            return;
+          if (items.length > 0) {
+            const results = items.slice(0, 8).map((i: any) => ({
+              id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+              title: i.title,
+              artist: i.uploaderName || 'YouTube'
+            })).filter((r: any) => r.id && r.id.length === 11);
+
+            if (results.length > 0) {
+              setSearchResults(results);
+              setIsSearching(false);
+              return;
+            }
           }
         }
+      } catch (e) {
+        console.log(`Proxy ${apiBase} failed, trying next...`);
+        continue;
       }
-    } catch (e) {
-      console.error("Search failed:", e);
     }
 
-    setUrlError('검색 결과를 가져오지 못했습니다. 파이썬 서버(main.py)가 켜져 있는지 확인해 주세요.');
+    setUrlError('검색 결과를 가져오지 못했습니다. 파이썬 서버가 꺼져 있거나 모바일 데이터 상태를 확인해 주세요.');
     setIsSearching(false);
   };
   
