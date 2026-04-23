@@ -27,14 +27,14 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: 'IHNzEQiEino', title: 'NewJeans (뉴진스) - Hype Boy' },
-  { id: 'd9IxdwEFk1c', title: 'IVE (아이브) - LOVE DIVE' },
-  { id: '11cta61wi0g', title: 'LE SSERAFIM (르세라핌) - ANTIFRAGILE' },
-  { id: 'T2wBbB-gcBw', title: 'aespa (에스파) - Next Level' },
-  { id: 'pSUydWEqKwE', title: 'STAYC (스테이씨) - Teddy Bear' },
-  { id: 'AwwleMEyBsY', title: 'ITZY (있지) - SNEAKERS' },
-  { id: 'K9_VFxzCuQ0', title: 'DAY6 (데이식스) - 한 페이지가 될 수 있게' },
-  { id: 'HhqQCAQkGec', title: 'QWER (큐더블유이알) - 고민중독' }
+  { id: '8mZpCHu_rsw', title: 'Tower of Power - What is Hip? (Funk Legend)' },
+  { id: 'qmOLtTGvsbM', title: 'Toto - Rosanna (Half-time Shuffle)' },
+  { id: 'T9vR_iS02oE', title: 'Casiopea - Asayake (J-Fusion Classic)' },
+  { id: 'I7m-mJ40LhE', title: 'Steely Dan - Aja (Steve Gadd Masterpiece)' },
+  { id: 'L_XJ_s5IsQc', title: 'Snarky Puppy - Lingus (Modern Technical)' },
+  { id: 'Y7vG-ZqA4Z4', title: 'Dave Weckl - Festival de Ritmos (Rudiments)' },
+  { id: 'I2PpgWh5n94', title: 'Vulfpeck - It Gets Funkier (Pocket Groove)' },
+  { id: '6vY8rZ_xV-8', title: 'Dirty Loops - Coffee Break (Technical Pop)' }
 ];
 
 // ── YouTube Helpers ────────────────────────────────────────────────────────
