@@ -27,10 +27,10 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: 'I_vTIs7nC0A', title: '아기 다람쥐 또미 (Remix)', artist: '유니 전용' },
-  { id: 'v_v8L7mSmsY', title: '산토끼 (Rock Drum)', artist: '유니 전용' },
-  { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna', artist: 'Classic' },
-  { id: 'G8VFOIzkg-M', title: 'Tower of Power - What is Hip?', artist: 'Funk' }
+  { id: 'I_vTIs7nC0A', title: '아기 다람쥐 또미 (유니 전용)', artist: 'Children' },
+  { id: 'Y8-0K98xO80', title: 'Super Mario Theme (Drum Ver.)', artist: 'Game' },
+  { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna (Classic)', artist: 'Rock' },
+  { id: 'G8VFOIzkg-M', title: 'What is Hip? (Funk)', artist: 'Funk' }
 ];
 
 // ── YouTube Helpers ────────────────────────────────────────────────────────
@@ -224,28 +224,39 @@ export default function BeatDrop() {
     setIsSearching(true); setUrlError(''); synth.unlock();
     const searchPromise = (async () => {
       const query = encodeURIComponent(searchQuery);
+      // Using only the most stable instances currently known
       const apiBases = [
-        'https://pipedapi.kavin.rocks', 
-        'https://api.piped.private.coffee', 
-        'https://piped-api.garudalinux.org',
-        'https://pipedapi.rivo.cc'
+        'https://pipedapi.rivo.cc',
+        'https://api-piped.mha.fi',
+        'https://piped-api.lunar.icu',
+        'https://pipedapi.kavin.rocks'
       ];
 
       for (const base of apiBases) {
         try {
-          const res = await fetch(`${base}/search?q=${query}&filter=all`);
+          const res = await fetch(`${base}/search?q=${query}&filter=all`, { 
+            headers: { 'Accept': 'application/json' } 
+          });
           if (res.ok) {
             const data = await res.json();
-            const items = (data.items || []).filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
-              id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-              title: i.title, artist: i.uploaderName || 'YouTube'
-            })).filter((r: any) => r.id && r.id.length === 11);
-            if (items.length > 0) return items;
+            if (data && data.items) {
+              const items = data.items
+                .filter((i: any) => i.type === 'stream')
+                .slice(0, 8)
+                .map((i: any) => ({
+                  id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+                  title: i.title, 
+                  artist: i.uploaderName || 'YouTube'
+                }))
+                .filter((r: any) => r.id && r.id.length === 11);
+              if (items.length > 0) return items;
+            }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error(`Search failed on ${base}:`, e);
+        }
       }
       
-      // Fallback to local
       try {
         const res = await fetch(`http://localhost:8000/api/search?q=${query}`);
         if (res.ok) return await res.json();
@@ -257,13 +268,14 @@ export default function BeatDrop() {
     try {
       const result: any = await Promise.race([
         searchPromise,
-        new Promise(resolve => setTimeout(() => resolve('timeout'), 15000))
+        new Promise(resolve => setTimeout(() => resolve('timeout'), 12000))
       ]);
       
       if (result && result !== 'timeout') {
         setSearchResults(result);
+        setUrlError('');
       } else {
-        setUrlError(result === 'timeout' ? '검색 시간이 초과되었습니다.' : '검색 결과를 가져오지 못했습니다.');
+        setUrlError(result === 'timeout' ? '검색 시간이 초과되었습니다.' : '결과를 찾을 수 없습니다.');
       }
     } catch (e) {
       setUrlError('검색 중 오류가 발생했습니다.');
