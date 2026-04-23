@@ -165,53 +165,49 @@ export default function BeatDrop() {
     });
   }, [ytReady, videoId, screen]);
 
+  const lastBeatRef = useRef<number>(0);
   useEffect(() => {
     if (playing) {
-      const animate = (ts: number) => {
+      const animate = () => {
         if (!ytPlayerRef.current || typeof ytPlayerRef.current.getCurrentTime !== 'function') {
           animRef.current = requestAnimationFrame(animate);
           return;
         }
 
-        // Use YouTube time as ground truth but interpolate for smoothness
         const videoTime = ytPlayerRef.current.getCurrentTime() || 0;
         const targetBeat = videoTime * (bpm / 60) * 4;
-        
-        // Loop every 256 beats (16 bars)
         const loopedBeat = targetBeat % 256;
-        
-        // Prevent state update if time hasn't changed enough to avoid jitter
-        if (Math.abs(loopedBeat - currentTime) > 0.01) {
-          setCurrentTime(loopedBeat);
-        }
 
-        // Sound triggers
+        // Sound triggers: check range between lastBeatRef and loopedBeat
         if (!isMuted) {
           notes.forEach(n => {
-            if (n.time <= loopedBeat && !playedRef.current.has(n.id)) {
-              // Only trigger if we are close to the note (prevent triggering old notes when seeking)
-              if (loopedBeat - n.time < 1) {
-                playedRef.current.add(n.id);
-                if (n.lane === 0) synth.hihat();
-                if (n.lane === 1) synth.snare();
-                if (n.lane === 2) synth.kick();
-                if (n.lane === 3) synth.cymbal();
-              }
+            // Trigger if note falls between last beat and current beat
+            // Or if we just looped back
+            const hasLooped = loopedBeat < lastBeatRef.current;
+            const shouldTrigger = hasLooped 
+              ? (n.time > lastBeatRef.current || n.time <= loopedBeat)
+              : (n.time > lastBeatRef.current && n.time <= loopedBeat);
+
+            if (shouldTrigger && !playedRef.current.has(n.id)) {
+              if (n.lane === 0) synth.hihat();
+              else if (n.lane === 1) synth.snare();
+              else if (n.lane === 2) synth.kick();
+              else if (n.lane === 3) synth.cymbal();
+              playedRef.current.add(n.id);
             }
           });
         }
 
-        // Reset triggers if we jump back significantly (loop or seek)
-        if (loopedBeat < 1) {
-          playedRef.current.clear();
-        }
-
+        // Clean up played set periodically or on loop
+        if (loopedBeat < lastBeatRef.current) playedRef.current.clear();
+        
+        setCurrentTime(loopedBeat);
+        lastBeatRef.current = loopedBeat;
         animRef.current = requestAnimationFrame(animate);
       };
       animRef.current = requestAnimationFrame(animate);
-    } else { 
-      if (animRef.current) cancelAnimationFrame(animRef.current); 
-      lastTRef.current = 0; 
+    } else {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
     }
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [playing, bpm, isMuted, notes]);
