@@ -83,13 +83,11 @@ class DrumSynth {
     if (!this.ctx) return;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    o.type = type; o.frequency.setValueAtTime(freq, this.ctx.currentTime);
     o.frequency.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
     g.gain.setValueAtTime(vol, this.ctx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
-    o.connect(g); g.connect(this.ctx.destination);
-    o.start(); o.stop(this.ctx.currentTime + dur);
+    o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + dur);
   }
   private noise(dur: number, vol: number, hp = 2000) {
     if (!this.ctx) return;
@@ -120,7 +118,7 @@ export default function BeatDrop() {
 
   // ── States ──
   const [screen, setScreen] = useState<'input' | 'player'>('input');
-  const [inputMode, setInputMode] = useState<'link' | 'search'>('search');
+  const [inputMode, setInputMode] = useState<'search' | 'link'>('search');
   const [urlInput, setUrlInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{id: string, title: string, artist: string}[]>([]);
@@ -138,24 +136,13 @@ export default function BeatDrop() {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishMood, setFinishMood] = useState<string | null>(null);
 
-  // ── Refs ──
   const ytPlayerRef = useRef<any>(null);
   const ytPlayerContainerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>();
   const lastTRef = useRef<number>(0);
   const playedRef = useRef<Set<string>>(new Set());
 
-  // ── Auto-load if continuing practice ──────────────────────────────────
-  useEffect(() => {
-    if (location.state?.continue && currentTrack?.videoId) {
-      setVideoId(currentTrack.videoId);
-      setVideoTitle(currentTrack.title);
-      setBpm(currentTrack.bpm);
-      setScreen('player');
-    }
-  }, [location.state, currentTrack]);
-
-  // ── YouTube API ────────────────────────────────────────────────────────
+  // ── YouTube API ──
   useEffect(() => {
     if (window.YT && window.YT.Player) { setYtReady(true); return; }
     const tag = document.createElement('script');
@@ -167,21 +154,18 @@ export default function BeatDrop() {
   useEffect(() => {
     if (!ytReady || !videoId || screen !== 'player' || !ytPlayerContainerRef.current) return;
     if (ytPlayerRef.current) { try { ytPlayerRef.current.destroy(); } catch {} ytPlayerRef.current = null; }
-    
     ytPlayerContainerRef.current.innerHTML = '';
     const playerDiv = document.createElement('div');
     playerDiv.style.width = '100%'; playerDiv.style.height = '180px';
     ytPlayerContainerRef.current.appendChild(playerDiv);
-
     ytPlayerRef.current = new window.YT.Player(playerDiv, {
       videoId,
       playerVars: { autoplay: 1, controls: 1, playsinline: 1, rel: 0, modestbranding: 1 },
-      events: { onStateChange: (e: any) => { setPlaying(e.data === 1); } }
+      events: { onStateChange: (e: any) => setPlaying(e.data === 1) }
     });
-    return () => { if (ytPlayerRef.current) try { ytPlayerRef.current.destroy(); } catch {} };
   }, [ytReady, videoId, screen]);
 
-  // ── Drum animation ─────────────────────────────────────────────────────
+  // ── Animation ──
   useEffect(() => {
     if (playing) {
       const animate = (ts: number) => {
@@ -212,44 +196,20 @@ export default function BeatDrop() {
     return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
   }, [playing, bpm, isMuted, notes]);
 
-  // ── Handlers ──────────────────────────────────────────────────────────
-  const togglePlay = () => {
-    synth.unlock();
-    if (playing) {
-      if (ytPlayerRef.current) ytPlayerRef.current.pauseVideo();
-      setPlaying(false);
-    } else {
-      if (ytPlayerRef.current) ytPlayerRef.current.playVideo();
-      setPlaying(true);
-    }
-  };
-
+  // ── Handlers ──
   const handleSelectSearchResult = (song: {id: string, title: string, artist: string}) => {
     synth.unlock();
-    setVideoId(song.id);
-    setVideoTitle(song.title);
+    setVideoId(song.id); setVideoTitle(song.title);
     setCurrentTrack({ title: song.title, artist: song.artist, bpm, videoId: song.id });
-    setScreen('player');
-    setPlaying(true);
+    setScreen('player'); setPlaying(true);
   };
-
-  const handleSubmitUrl = useCallback(async () => {
-    synth.unlock();
-    const id = extractVideoId(urlInput.trim());
-    if (!id) { setUrlError('올바른 유튜브 링크를 붙여넣어 주세요!'); return; }
-    setUrlError(''); setLoadingTitle(true);
-    const title = await fetchVideoTitle(id);
-    setVideoTitle(title); setVideoId(id);
-    setCurrentTrack({ title, artist: 'YouTube', bpm, videoId: id });
-    setLoadingTitle(false); setScreen('player'); setPlaying(true);
-  }, [urlInput, bpm, setCurrentTrack]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
-    setIsSearching(true); setUrlError('');
+    setIsSearching(true); setUrlError(''); synth.unlock();
     const query = encodeURIComponent(searchQuery);
 
-    // 1. Try local backend
+    // 1. Local try
     try {
       const res = await fetch(`http://localhost:8000/api/search?q=${query}`);
       if (res.ok) {
@@ -258,184 +218,208 @@ export default function BeatDrop() {
       }
     } catch {}
 
-    // 2. Try proxy fallbacks
-    const proxies = ['https://api.piped.private.coffee', 'https://pipedapi.kavin.rocks', 'https://piped-api.garudalinux.org'];
-    for (const apiBase of proxies) {
+    // 2. Strong proxy fallback
+    const apiBases = ['https://pipedapi.kavin.rocks', 'https://api.piped.private.coffee', 'https://piped-api.garudalinux.org'];
+    for (const base of apiBases) {
       try {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`${apiBase}/search?q=${query}&filter=all`)}`);
+        const res = await fetch(`${base}/search?q=${query}&filter=all`); // Direct fetch often has CORS
         if (res.ok) {
-          const wrapper = await res.json();
-          const data = JSON.parse(wrapper.contents);
-          const results = (data.items || []).filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
+          const data = await res.json();
+          const items = (data.items || []).filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
             id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
             title: i.title, artist: i.uploaderName || 'YouTube'
           })).filter((r: any) => r.id && r.id.length === 11);
-          if (results.length > 0) { setSearchResults(results); setIsSearching(false); return; }
+          if (items.length > 0) { setSearchResults(items); setIsSearching(false); return; }
+        }
+        // Fallback to proxy if direct fails
+        const proxyRes = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`${base}/search?q=${query}&filter=all`)}`);
+        if (proxyRes.ok) {
+          const wrapper = await proxyRes.json();
+          const data = JSON.parse(wrapper.contents);
+          const items = (data.items || []).filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
+            id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+            title: i.title, artist: i.uploaderName || 'YouTube'
+          })).filter((r: any) => r.id && r.id.length === 11);
+          if (items.length > 0) { setSearchResults(items); setIsSearching(false); return; }
         }
       } catch {}
     }
-    setUrlError('검색 결과를 가져오지 못했습니다. 파이썬 서버가 켜져 있는지 확인해 주세요.');
+    setUrlError('검색 결과를 가져오지 못했습니다. 파이썬 서버를 확인해 주세요.');
     setIsSearching(false);
+  };
+
+  const handleSubmitUrl = async () => {
+    synth.unlock();
+    const id = extractVideoId(urlInput.trim());
+    if (!id) { setUrlError('올바른 유튜브 링크를 넣어주세요!'); return; }
+    setUrlError(''); setLoadingTitle(true);
+    const title = await fetchVideoTitle(id);
+    setVideoTitle(title); setVideoId(id);
+    setCurrentTrack({ title, artist: 'YouTube', bpm, videoId: id });
+    setLoadingTitle(false); setScreen('player'); setPlaying(true);
   };
 
   const handleRandomPlay = () => {
     synth.unlock();
-    const song = RANDOM_SONGS[Math.floor(Math.random() * RANDOM_SONGS.length)];
-    setVideoId(song.id); setVideoTitle(song.title);
-    setCurrentTrack({ title: song.title, artist: 'YouTube', bpm, videoId: song.id });
-    setScreen('player'); setPlaying(true);
+    const s = RANDOM_SONGS[Math.floor(Math.random() * RANDOM_SONGS.length)];
+    setVideoId(s.id); setVideoTitle(s.title); setScreen('player'); setPlaying(true);
+  };
+
+  const togglePlay = () => {
+    synth.unlock();
+    if (playing) { ytPlayerRef.current?.pauseVideo(); setPlaying(false); }
+    else { ytPlayerRef.current?.playVideo(); setPlaying(true); }
   };
 
   const handleReset = () => {
     setCurrentTime(0); setPlaying(false); playedRef.current.clear();
-    if (ytPlayerRef.current) try { ytPlayerRef.current.seekTo(0); ytPlayerRef.current.pauseVideo(); } catch {}
+    ytPlayerRef.current?.seekTo(0); ytPlayerRef.current?.pauseVideo();
   };
 
   const handleFinish = () => {
     if (!finishMood) return;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const log = { date: todayStr, mood: finishMood, duration: 15, notes: `${videoTitle} 연습 완료!`, hasVoiceNote: false };
-    const existing = JSON.parse(localStorage.getItem('yuni_practice_logs') || '[]');
-    localStorage.setItem('yuni_practice_logs', JSON.stringify([...existing.filter((l: any) => l.date !== todayStr), log]));
+    const log = { date: new Date().toISOString().split('T')[0], mood: finishMood, duration: 15, notes: `${videoTitle} 완료!`, hasVoiceNote: false };
+    const ex = JSON.parse(localStorage.getItem('yuni_practice_logs') || '[]');
+    localStorage.setItem('yuni_practice_logs', JSON.stringify([...ex, log]));
     setShowFinishModal(false); navigate('/progress');
   };
 
   const hitLine = 82;
 
   // ══════════════════════════════════════════════════════════════════════
-  // UI: Input Screen
+  // UI: Input (Exact match to User Screenshot)
   // ══════════════════════════════════════════════════════════════════════
   if (screen === 'input') {
     return (
-      <div className="h-screen flex flex-col items-center justify-center p-6 gap-6 overflow-y-auto">
-        <div className="text-center space-y-2">
-          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto"
-            style={{ background: 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))', boxShadow: '0 0 30px var(--neon-pink)' }}>
-            <Music className="w-10 h-10 text-white" />
+      <div className="h-screen flex flex-col items-center justify-center p-6 gap-8 bg-[#0D0D0D]">
+        <div className="text-center space-y-4">
+          <div className="w-24 h-24 rounded-3xl flex items-center justify-center mx-auto"
+            style={{ background: 'linear-gradient(135deg, #FF00FF, #00FFFF)', boxShadow: '0 0 30px rgba(255,0,255,0.4)' }}>
+            <Music className="w-12 h-12 text-white" />
           </div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)', textShadow: '0 0 15px var(--neon-pink)' }}>Beat Drop</h1>
-          <p className="text-sm opacity-60 text-white">원하는 곡에 맞춰 드럼을 연습해보세요!</p>
+          <h1 className="text-4xl font-black italic tracking-tighter" style={{ background: 'linear-gradient(to bottom, #FFFFFF, #FF00FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Beat Drop</h1>
+          <p className="text-sm font-medium opacity-70 text-white">원하는 곡에 맞춰 드럼을 연습해보세요!</p>
         </div>
 
-        <div className="w-full max-w-sm space-y-4 pb-10">
-          <div className="flex gap-2 p-1 rounded-xl bg-white/5">
-            <button className="flex-1 py-2 text-sm rounded-lg transition-all" onClick={() => setInputMode('search')}
-              style={{ background: inputMode === 'search' ? 'white/10' : 'transparent', color: inputMode === 'search' ? 'var(--neon-cyan)' : 'white/50' }}>유튜브 검색</button>
-            <button className="flex-1 py-2 text-sm rounded-lg transition-all" onClick={() => setInputMode('link')}
-              style={{ background: inputMode === 'link' ? 'white/10' : 'transparent', color: inputMode === 'link' ? 'var(--neon-pink)' : 'white/50' }}>링크 붙여넣기</button>
+        <div className="w-full max-w-sm space-y-6">
+          {/* Tabs - Exact Screenshot Design */}
+          <div className="flex gap-1 p-1 rounded-2xl bg-[#1A1C22]">
+            <button onClick={() => setInputMode('search')} className="flex-1 py-3 text-sm font-bold rounded-xl transition-all"
+              style={{ background: inputMode === 'search' ? '#2A2D35' : 'transparent', color: inputMode === 'search' ? '#5FFBF1' : '#FFFFFF' }}>유튜브 검색</button>
+            <button onClick={() => setInputMode('link')} className="flex-1 py-3 text-sm font-bold rounded-xl transition-all"
+              style={{ background: inputMode === 'link' ? '#2A2D35' : 'transparent', color: inputMode === 'link' ? '#5FFBF1' : '#FFFFFF' }}>링크 붙여넣기</button>
           </div>
 
-          {inputMode === 'link' ? (
-            <div className="relative">
-              <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40 text-white" />
-              <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmitUrl()}
-                placeholder="https://youtu.be/..." className="w-full pl-12 pr-4 py-4 rounded-2xl text-base outline-none bg-white/5 text-white border border-white/10" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="relative flex gap-2">
+          {inputMode === 'search' ? (
+            <div className="space-y-4">
+              <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40 text-white" />
                   <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                    placeholder="곡명, 아티스트 검색" className="w-full pl-12 pr-4 py-4 rounded-2xl text-base outline-none bg-white/5 text-white border border-white/10" />
+                    placeholder="곡명, 아티스트 검색" className="w-full pl-12 pr-4 py-4 rounded-2xl bg-[#16181D] text-white outline-none border border-white/5" />
                 </div>
-                <button onClick={handleSearch} className="px-4 rounded-2xl border border-cyan-400 bg-cyan-400/10 text-cyan-400">
-                  {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+                <button onClick={handleSearch} className="w-14 h-14 rounded-2xl flex items-center justify-center border-2 border-[#00FFFF] bg-[#00FFFF]/5 text-[#00FFFF]">
+                  {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-6 h-6" />}
                 </button>
               </div>
               {searchResults.length > 0 && (
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                   {searchResults.map(res => (
                     <button key={res.id} onClick={() => handleSelectSearchResult(res)} className="w-full flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 text-left hover:bg-white/10">
                       <Youtube className="w-5 h-5 text-pink-500" />
-                      <div className="flex-1 overflow-hidden"><div className="text-sm font-medium truncate text-white">{res.title}</div><div className="text-xs opacity-50 truncate text-white">{res.artist}</div></div>
+                      <div className="flex-1 overflow-hidden"><div className="text-sm font-medium truncate text-white">{res.title}</div></div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
+          ) : (
+            <div className="relative">
+              <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40 text-white" />
+              <input type="text" value={urlInput} onChange={e => setUrlInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmitUrl()}
+                placeholder="https://youtu.be/..." className="w-full pl-12 pr-4 py-4 rounded-2xl bg-[#16181D] text-white outline-none border border-white/5" />
+            </div>
           )}
-          {urlError && <p className="text-sm text-pink-500">⚠️ {urlError}</p>}
+
           <div className="space-y-2">
-            <div className="flex justify-between text-xs opacity-60 text-white"><span>BPM</span><span className="text-pink-500">{bpm}</span></div>
-            <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1" />
+            <div className="flex justify-between text-xs font-bold"><span className="text-white opacity-60">빠르기 (BPM)</span><span className="text-[#FF00FF]">{bpm}</span></div>
+            <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1 accent-[#FF00FF]" />
           </div>
-          <button onClick={inputMode === 'link' ? handleSubmitUrl : handleSearch} className="w-full py-4 rounded-2xl font-bold text-lg text-white flex items-center justify-center gap-2"
-            style={{ background: 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))', boxShadow: '0 0 20px rgba(255,0,255,0.4)' }}>
-            {loadingTitle ? <Loader2 className="w-5 h-5 animate-spin" /> : <>시작하기 <ArrowRight className="w-5 h-5" /></>}
+
+          <button onClick={inputMode === 'search' ? handleSearch : handleSubmitUrl} className="w-full py-5 rounded-2xl font-black text-xl text-white flex items-center justify-center gap-2 transition-transform active:scale-95"
+            style={{ background: 'linear-gradient(90deg, #FF00FF, #48A9FE)', boxShadow: '0 0 25px rgba(255,0,255,0.4)' }}>
+            시작하기 <ArrowRight className="w-6 h-6" />
           </button>
-          <p className="text-center text-xs opacity-40 text-white pt-2">어떤 곡을 칠지 모르겠다면? <button className="underline" onClick={handleRandomPlay}>랜덤 재생</button></p>
+          
+          <button className="w-full text-xs opacity-40 text-white underline" onClick={handleRandomPlay}>랜덤 곡으로 자유 연습하기</button>
         </div>
       </div>
     );
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // UI: Player Screen
+  // UI: Player
   // ══════════════════════════════════════════════════════════════════════
   return (
     <div className="h-screen flex flex-col bg-[#0A0A0A] text-white">
       <div className="p-4 flex-shrink-0">
-        <div className="relative rounded-2xl overflow-hidden bg-black/40 border border-white/10">
+        <div className="relative rounded-3xl overflow-hidden bg-black/40 border border-white/10">
           <div ref={ytPlayerContainerRef} style={{ width: '100%', height: '180px' }} />
-          <div className="absolute top-2 left-2 flex gap-2">
-            <button onClick={() => { setScreen('input'); setPlaying(false); }} className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm opacity-80">← 뒤로</button>
-            <div className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-cyan-400">{bpm} BPM</div>
+          <div className="absolute top-3 left-3 flex gap-2">
+            <button onClick={() => { setScreen('input'); setPlaying(false); }} className="text-xs px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 font-bold">← BACK</button>
+            <div className="text-xs px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[#00FFFF] font-bold">{bpm} BPM</div>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 relative overflow-hidden mx-4 rounded-2xl bg-black/20 border border-white/5">
+      <div className="flex-1 relative overflow-hidden mx-4 rounded-3xl bg-black/40 border border-white/5">
         <div className="absolute inset-0 grid grid-cols-4">
           {LANES.map(lane => (
             <div key={lane.id} className="relative flex flex-col border-l border-white/5">
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full z-10" style={{ background: `${lane.color}25`, color: lane.color }}>{lane.symbol}</div>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 text-[11px] font-black px-2 py-0.5 rounded-full z-10" style={{ background: `${lane.color}25`, color: lane.color }}>{lane.symbol}</div>
               <AnimatePresence>
                 {notes.filter(n => n.lane === lane.id && n.time >= currentTime && n.time < currentTime + 32).map(note => {
                   const pct = ((note.time - currentTime) / 32) * 100;
                   return (
                     <motion.div key={note.id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                       className="absolute left-1/2 -translate-x-1/2 rounded-xl"
-                      style={{ top: `${hitLine - pct}%`, width: 40, height: 22, background: lane.color, boxShadow: `0 0 15px ${lane.color}` }} />
+                      style={{ top: `${hitLine - pct}%`, width: 44, height: 24, background: lane.color, boxShadow: `0 0 20px ${lane.color}`, border: '2px solid rgba(255,255,255,0.4)' }} />
                   );
                 })}
               </AnimatePresence>
             </div>
           ))}
         </div>
-        <div className="absolute left-0 right-0 h-[2px] bg-white/80 z-10" style={{ top: `${hitLine}%`, boxShadow: '0 0 15px white' }} />
-        <div className="absolute bottom-0 left-0 right-0 grid grid-cols-4 px-1 pb-2">
-          {LANES.map(lane => (<div key={lane.id} className="text-center text-[10px] opacity-40" style={{ color: lane.color }}>{lane.name}</div>))}
-        </div>
+        <div className="absolute left-0 right-0 h-[3px] bg-white z-10" style={{ top: `${hitLine}%`, boxShadow: '0 0 20px white' }} />
       </div>
 
-      <div className="p-6 flex-shrink-0 space-y-6">
+      <div className="p-8 flex-shrink-0 space-y-8">
         <div className="flex items-center justify-center gap-10">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={handleReset} className="w-14 h-14 rounded-full flex items-center justify-center bg-white/5 border border-white/10 opacity-60"><RotateCcw className="w-7 h-7" /></motion.button>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={handleReset} className="w-16 h-16 rounded-full flex items-center justify-center bg-white/5 border border-white/10"><RotateCcw className="w-8 h-8 opacity-60" /></motion.button>
           <motion.button whileTap={{ scale: 0.9 }} onClick={togglePlay} className="w-24 h-24 rounded-full flex items-center justify-center"
-            style={{ background: 'var(--neon-pink)', boxShadow: '0 0 30px var(--neon-pink)' }}>
+            style={{ background: '#FF00FF', boxShadow: '0 0 40px rgba(255,0,255,0.6)' }}>
             {playing ? <Pause className="w-12 h-12 text-white" /> : <Play className="w-12 h-12 text-white pl-1" />}
           </motion.button>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setIsMuted(p => !p)} className="w-14 h-14 rounded-full flex items-center justify-center bg-white/5 border border-white/10 opacity-60">
-            {isMuted ? <VolumeX className="w-7 h-7" /> : <Volume2 className="w-7 h-7 text-cyan-400" />}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setIsMuted(p => !p)} className="w-16 h-16 rounded-full flex items-center justify-center bg-white/5 border border-white/10">
+            {isMuted ? <VolumeX className="w-8 h-8 opacity-40" /> : <Volume2 className="w-8 h-8 text-[#00FFFF]" />}
           </motion.button>
         </div>
         <div className="flex items-center gap-4">
-          <div className="flex-1"><input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1" /></div>
-          <div className="text-xs font-bold text-pink-500 w-16">{bpm} BPM</div>
+          <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="flex-1 h-1 accent-[#FF00FF]" />
+          <div className="text-sm font-black text-[#FF00FF] w-16">{bpm} BPM</div>
         </div>
-        <button onClick={() => setShowFinishModal(true)} className="w-full py-4 rounded-2xl font-bold text-white" style={{ background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-green))' }}>연습 종료 및 기록하기</button>
+        <button onClick={() => setShowFinishModal(true)} className="w-full py-4 rounded-2xl font-black text-white" style={{ background: 'linear-gradient(90deg, #00FFFF, #00FF88)', boxShadow: '0 0 20px rgba(0,255,255,0.3)' }}>연습 종료 및 기록하기</button>
       </div>
 
       <AnimatePresence>
         {showFinishModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
-            <div className="w-full max-w-sm rounded-3xl p-8 space-y-6 bg-[#1A1A1A] border border-pink-500/30">
-              <h3 className="text-2xl font-bold text-center text-pink-500">오늘 연습 어땠어?</h3>
-              <div className="flex justify-center gap-4 text-4xl">
-                {['😊', '😎', '🔥', '😅'].map(m => (<button key={m} onClick={() => setFinishMood(m)} className="active:scale-90" style={{ filter: finishMood === m ? 'none' : 'grayscale(100%) opacity(50%)' }}>{m}</button>))}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
+            <div className="w-full max-w-sm rounded-[40px] p-10 space-y-8 bg-[#15171C] border border-white/10">
+              <h3 className="text-3xl font-black text-center text-[#FF00FF]">오늘 연습 어땠어?</h3>
+              <div className="flex justify-center gap-4 text-5xl">
+                {['😊', '😎', '🔥', '😅'].map(m => (<button key={m} onClick={() => setFinishMood(m)} className="transition-transform active:scale-75" style={{ filter: finishMood === m ? 'none' : 'grayscale(100%) opacity(40%)' }}>{m}</button>))}
               </div>
-              <button onClick={handleFinish} disabled={!finishMood} className="w-full py-4 rounded-xl font-bold text-white disabled:opacity-40" style={{ background: 'var(--neon-pink)' }}>기록 저장하기</button>
+              <button onClick={handleFinish} disabled={!finishMood} className="w-full py-5 rounded-2xl font-black text-xl text-white disabled:opacity-40" style={{ background: '#FF00FF', boxShadow: '0 0 25px rgba(255,0,255,0.4)' }}>저장하기</button>
             </div>
           </motion.div>
         )}
