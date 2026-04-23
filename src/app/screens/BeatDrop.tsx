@@ -145,6 +145,39 @@ export default function BeatDrop() {
   }, [screen]);
 
   useEffect(() => {
+    // Handle "Continue Practice" from Home screen
+    if ((location.state as any)?.continue) {
+      if (currentTrack?.videoId) {
+        // Option A: Use track in context
+        setVideoId(currentTrack.videoId);
+        setVideoTitle(currentTrack.title);
+        setBpm(currentTrack.bpm || 120);
+        setScreen('player');
+        setPlaying(true);
+      } else {
+        // Option B: Try loading from logs if context is empty
+        const logs = JSON.parse(localStorage.getItem('mooni_practice_logs') || '[]');
+        if (logs.length > 0) {
+          const lastLog = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          if (lastLog.videoId) {
+            setVideoId(lastLog.videoId);
+            setVideoTitle(lastLog.title);
+            setBpm(lastLog.bpm || 120);
+            setCurrentTrack({ 
+              title: lastLog.title, 
+              artist: lastLog.artist || 'YouTube', 
+              bpm: lastLog.bpm || 120, 
+              videoId: lastLog.videoId 
+            });
+            setScreen('player');
+            setPlaying(true);
+          }
+        }
+      }
+    }
+  }, [location.state, currentTrack, setCurrentTrack]);
+
+  useEffect(() => {
     if (window.YT && window.YT.Player) { setYtReady(true); return; }
     const tag = document.createElement('script');
     tag.src = 'https://www.youtube.com/iframe_api';
@@ -327,6 +360,8 @@ export default function BeatDrop() {
       duration: durationMinutes, 
       title: videoTitle,
       artist: currentTrack?.artist || 'YouTube',
+      videoId: videoId,
+      bpm: bpm,
       notes: `${videoTitle} 완료!`, 
       hasVoiceNote: false 
     };
