@@ -136,6 +136,13 @@ export default function BeatDrop() {
   const animRef = useRef<number>();
   const lastTRef = useRef<number>(0);
   const playedRef = useRef<Set<string>>(new Set());
+  const sessionStartRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (screen === 'player') {
+      sessionStartRef.current = Date.now();
+    }
+  }, [screen]);
 
   useEffect(() => {
     if (window.YT && window.YT.Player) { setYtReady(true); return; }
@@ -313,7 +320,14 @@ export default function BeatDrop() {
 
   const handleFinish = () => {
     if (!finishMood) return;
-    const log = { date: new Date().toISOString().split('T')[0], mood: finishMood, duration: 15, notes: `${videoTitle} 완료!`, hasVoiceNote: false };
+    const durationMinutes = Math.max(1, Math.round((Date.now() - sessionStartRef.current) / 60000));
+    const log = { 
+      date: new Date().toISOString().split('T')[0], 
+      mood: finishMood, 
+      duration: durationMinutes, 
+      notes: `${videoTitle} 완료!`, 
+      hasVoiceNote: false 
+    };
     const ex = JSON.parse(localStorage.getItem('mooni_practice_logs') || '[]');
     localStorage.setItem('mooni_practice_logs', JSON.stringify([...ex, log]));
     setShowFinishModal(false); navigate('/progress');
