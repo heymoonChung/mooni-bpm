@@ -299,27 +299,26 @@ export default function BeatDrop() {
   if (screen === 'input') {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 gap-8 bg-[#0D0D0D]">
-        <div className="text-center space-y-2">
-          <style>{`
-            @keyframes neon-pulse {
-              0%, 100% { text-shadow: 0 0 20px var(--neon-pink), 0 0 40px var(--neon-pink); }
-              50% { text-shadow: 0 0 30px var(--neon-pink), 0 0 60px var(--neon-pink), 0 0 80px var(--neon-pink); }
-            }
-            .yuni-neon-title {
-              animation: neon-pulse 2s ease-in-out infinite;
-            }
-          `}</style>
-          <h1 className="text-6xl font-black tracking-tighter yuni-neon-title" style={{ color: 'var(--neon-pink)' }}>YUNI.BPM</h1>
-          <h2 className="text-xl font-bold tracking-[0.3em]" style={{ color: 'var(--neon-cyan)', textShadow: '0 0 15px var(--neon-cyan)' }}>DRUM PRACTICE APP</h2>
-          <p className="text-sm opacity-40 text-white pt-4">Yuni's personal practice companion</p>
-        </div>
-        <div className="w-full max-w-sm space-y-6">
-          <div className="flex gap-2 p-1.5 rounded-full bg-[#1A1C22] border border-white/5">
-            <button onClick={() => setInputMode('search')} className="flex-1 py-3 text-sm font-bold rounded-full transition-all"
-              style={{ background: inputMode === 'search' ? 'var(--neon-pink)' : 'transparent', color: '#FFFFFF', boxShadow: inputMode === 'search' ? '0 0 15px var(--neon-pink)' : 'none' }}>유튜브 검색</button>
-            <button onClick={() => setInputMode('link')} className="flex-1 py-3 text-sm font-bold rounded-full transition-all"
-              style={{ background: inputMode === 'link' ? 'var(--neon-cyan)' : 'transparent', color: inputMode === 'link' ? '#000000' : '#FFFFFF', boxShadow: inputMode === 'link' ? '0 0 15px var(--neon-cyan)' : 'none' }}>링크 붙여넣기</button>
+        <div className="text-center space-y-4">
+          <div className="w-20 h-20 rounded-[24px] flex items-center justify-center mx-auto"
+            style={{ 
+              background: 'linear-gradient(135deg, #60A5FA, #A855F7)', 
+              boxShadow: '0 0 30px rgba(255, 0, 255, 0.4)' 
+            }}>
+            <Music className="w-10 h-10 text-white" />
           </div>
+          <h1 className="text-4xl font-black text-[#FF00FF]" style={{ textShadow: '0 0 20px rgba(255, 0, 255, 0.5)' }}>Beat Drop</h1>
+          <p className="text-sm opacity-70 text-white">원하는 곡에 맞춰 드럼을 연습해보세요!</p>
+        </div>
+
+        <div className="w-full max-w-sm space-y-6">
+          <div className="flex gap-1 p-1 rounded-2xl bg-[#1A1C22]">
+            <button onClick={() => setInputMode('search')} className="flex-1 py-3 text-sm font-bold rounded-xl transition-all"
+              style={{ background: inputMode === 'search' ? '#2A2D35' : 'transparent', color: inputMode === 'search' ? '#5FFBF1' : '#FFFFFF' }}>유튜브 검색</button>
+            <button onClick={() => setInputMode('link')} className="flex-1 py-3 text-sm font-bold rounded-xl transition-all"
+              style={{ background: inputMode === 'link' ? '#2A2D35' : 'transparent', color: inputMode === 'link' ? '#5FFBF1' : '#FFFFFF' }}>링크 붙여넣기</button>
+          </div>
+
           {inputMode === 'search' ? (
             <div className="space-y-4">
               <div className="flex gap-2">
@@ -350,21 +349,28 @@ export default function BeatDrop() {
                 placeholder="https://youtu.be/..." className="w-full pl-12 pr-4 py-4 rounded-2xl bg-[#16181D] text-white outline-none border border-white/5" />
             </div>
           )}
+
           <div className="space-y-2">
             <div className="flex justify-between text-xs font-bold"><span className="text-white opacity-60">빠르기 (BPM)</span><span className="text-pink-500">{bpm}</span></div>
             <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1 accent-[#FF00FF]" />
           </div>
-          <button 
-            onClick={inputMode === 'search' ? handleSearch : handleSubmitUrl} 
-            disabled={isSearching || loadingTitle}
-            className="w-full py-5 rounded-full font-bold text-xl text-white flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-            style={{ 
-              background: 'transparent', 
-              border: `2px solid ${inputMode === 'search' ? 'var(--neon-pink)' : 'var(--neon-cyan)'}`,
-              boxShadow: `0 0 20px ${inputMode === 'search' ? 'var(--neon-pink)' : 'var(--neon-cyan)'}40` 
-            }}>
-            {isSearching || loadingTitle ? <Loader2 className="w-6 h-6 animate-spin" /> : <>연습 시작하기 <ArrowRight className="w-6 h-6" /></>}
+
+          <button onClick={inputMode === 'search' ? handleSearch : handleSubmitUrl} className="w-full py-5 rounded-2xl font-bold text-xl text-white flex items-center justify-center gap-2 transition-all active:scale-95"
+            style={{ background: 'linear-gradient(90deg, #FF00FF, #48A9FE)', boxShadow: '0 0 25px rgba(255,0,255,0.4)' }}>
+            검색하기 <ArrowRight className="w-6 h-6" />
           </button>
+
+          <div className="text-center">
+            <button 
+              onClick={() => {
+                const random = RANDOM_SONGS[Math.floor(Math.random() * RANDOM_SONGS.length)];
+                handleSelectSearchResult({ ...random, artist: 'Random Practice' });
+              }}
+              className="text-sm text-white/40 hover:text-white/60 transition-colors"
+            >
+              어떤 곡을 칠지 모르겠다면? <span className="underline decoration-white/20 underline-offset-4">최신곡 랜덤 재생 (자유 연습)</span>
+            </button>
+          </div>
         </div>
       </div>
     );
