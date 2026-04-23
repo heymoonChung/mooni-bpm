@@ -276,11 +276,10 @@ export default function BeatDrop() {
     if (!searchQuery.trim()) return;
     setIsSearching(true);
     setUrlError('');
-    synth.unlock(); // Awaken audio context early on user click
+    synth.unlock(); 
 
     const query = encodeURIComponent(searchQuery);
 
-    // Try local backend first
     try {
       const localRes = await fetch(`http://localhost:8000/api/search?q=${query}`);
       if (localRes.ok) {
