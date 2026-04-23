@@ -27,14 +27,10 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: 'G8VFOIzkg-M', title: 'Tower of Power - What is Hip? (Live Funk)' },
-  { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna (Live Shuffle)' },
-  { id: 'r7jkrDBkMGI', title: 'Casiopea - Asayake (Live Classic)' },
-  { id: 'Py0FdS-e960', title: 'Steely Dan - Aja (Steve Gadd Session)' },
-  { id: 'Nq5LMGtBmis', title: 'Vulfpeck - It Gets Funkier (Louis Cole)' },
-  { id: '5jDVZPzfS1c', title: 'Dave Weckl - Festival de Ritmos (Technical)' },
-  { id: 'aYYFmp9NBTk', title: 'Dirty Loops - Coffee Break (Modern Funk)' },
-  { id: 'Let9P-85z3U', title: 'Harry Styles - Sign of the Times (Drum Cover)' }
+  { id: '8mXjNqPZ0pE', title: '아기 다람쥐 또미 (Drum Ver.)', artist: '유니 전용' },
+  { id: '3f_v8L7mSms', title: '산토끼 (Rock Style)', artist: '유니 전용' },
+  { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna', artist: 'Classic' },
+  { id: 'G8VFOIzkg-M', title: 'Tower of Power - What is Hip?', artist: 'Funk' }
 ];
 
 // ── YouTube Helpers ────────────────────────────────────────────────────────
@@ -178,13 +174,16 @@ export default function BeatDrop() {
         }
 
         // Use YouTube time as ground truth but interpolate for smoothness
-        const videoTime = ytPlayerRef.current.getCurrentTime();
+        const videoTime = ytPlayerRef.current.getCurrentTime() || 0;
         const targetBeat = videoTime * (bpm / 60) * 4;
         
         // Loop every 256 beats (16 bars)
         const loopedBeat = targetBeat % 256;
         
-        setCurrentTime(loopedBeat);
+        // Prevent state update if time hasn't changed enough to avoid jitter
+        if (Math.abs(loopedBeat - currentTime) > 0.01) {
+          setCurrentTime(loopedBeat);
+        }
 
         // Sound triggers
         if (!isMuted) {
@@ -229,7 +228,7 @@ export default function BeatDrop() {
     setIsSearching(true); setUrlError(''); synth.unlock();
     const searchPromise = (async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/search?q=${query}`);
+        const res = await fetch(`http://localhost:8000/api/search?q=${searchQuery}`);
         if (res.ok) {
           const data = await res.json();
           if (data.length > 0) return data.slice(0, 8);
@@ -239,7 +238,7 @@ export default function BeatDrop() {
       const apiBases = ['https://pipedapi.kavin.rocks', 'https://api.piped.private.coffee', 'https://piped-api.garudalinux.org'];
       for (const base of apiBases) {
         try {
-          const res = await fetch(`${base}/search?q=${query}&filter=all`);
+          const res = await fetch(`${base}/search?q=${searchQuery}&filter=all`);
           if (res.ok) {
             const data = await res.json();
             const items = (data.items || []).filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
