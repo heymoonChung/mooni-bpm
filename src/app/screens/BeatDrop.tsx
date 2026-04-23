@@ -442,14 +442,15 @@ export default function BeatDrop() {
                   const pct = ((note.time - currentTime) / 32) * 100;
                   return (
                     <motion.div key={note.id} initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                      className="absolute left-1/2 -translate-x-1/2 rounded-full backdrop-blur-[2px]"
+                      className="absolute left-1/2 -translate-x-1/2 rounded-full"
                       style={{ 
                         top: `${hitLine - pct}%`, 
-                        width: 40, 
-                        height: 14, 
-                        background: `${lane.color}44`, 
-                        boxShadow: `0 0 20px ${lane.color}66, inset 0 0 10px ${lane.color}`, 
-                        border: `1.5px solid ${lane.color}88` 
+                        width: 32, 
+                        height: 12, 
+                        background: lane.color, 
+                        boxShadow: `0 0 20px ${lane.color}`, 
+                        border: '1.5px solid rgba(255,255,255,0.6)',
+                        zIndex: 20
                       }} />
                   );
                 })}
