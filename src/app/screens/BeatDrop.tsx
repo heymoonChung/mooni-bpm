@@ -225,24 +225,18 @@ export default function BeatDrop() {
     const searchPromise = (async () => {
       const query = encodeURIComponent(searchQuery);
       const apiBases = [
-        'http://localhost:8000/api/search?q=',
         'https://pipedapi.kavin.rocks/search?filter=all&q=', 
         'https://piped-api.lunar.icu/search?filter=all&q=',
         'https://api-piped.mha.fi/search?filter=all&q=',
         'https://pipedapi.rivo.cc/search?filter=all&q='
       ];
 
-      // Try all APIs in parallel and take the first one that succeeds
-      return Promise.any(apiBases.map(async (base) => {
+      // Try APIs one by one or in a simpler race to support older browsers
+      for (const base of apiBases) {
         try {
-          const res = await fetch(`${base}${query}`, { signal: AbortSignal.timeout(5000) });
+          const res = await fetch(`${base}${query}`);
           if (res.ok) {
             const data = await res.json();
-            // Handle local backend format (array of {id, title, artist})
-            if (Array.isArray(data) && data.length > 0 && data[0].id) {
-              return data.slice(0, 8);
-            }
-            // Handle Piped API format
             if (data.items) {
               const items = data.items.filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
                 id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
@@ -252,16 +246,24 @@ export default function BeatDrop() {
             }
           }
         } catch (e) {}
-        throw new Error('Failed');
-      }));
+      }
+      
+      // Finally try local as fallback
+      try {
+        const res = await fetch(`http://localhost:8000/api/search?q=${query}`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+      
+      throw new Error('All failed');
     })();
 
     try {
-      const result: any = await Promise.race([
+      // Use simple setTimeout based race for maximum compatibility
+      const result = await Promise.race([
         searchPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
       ]);
-      setSearchResults(result);
+      setSearchResults(result as any);
     } catch (e) {
       setUrlError('검색 결과를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
