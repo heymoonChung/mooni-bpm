@@ -39,15 +39,9 @@ const RANDOM_SONGS = [
 
 // ── YouTube Helpers ────────────────────────────────────────────────────────
 function extractVideoId(url: string): string | null {
-  const patterns = [
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-    /^([a-zA-Z0-9_-]{11})$/,
-  ];
-  for (const p of patterns) {
-    const m = url.match(p);
-    if (m) return m[1];
-  }
-  return null;
+  const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[7].length === 11) ? match[7] : null;
 }
 
 async function fetchVideoTitle(videoId: string): Promise<string> {
@@ -188,13 +182,11 @@ export default function BeatDrop() {
   useEffect(() => {
     if (!ytReady || !videoId || screen !== 'player' || !ytPlayerContainerRef.current) return;
 
-    // Destroy old player if exists
     if (ytPlayerRef.current) {
       try { ytPlayerRef.current.destroy(); } catch {}
       ytPlayerRef.current = null;
     }
     
-    // Clear container and create new div to avoid React unmount conflicts
     ytPlayerContainerRef.current.innerHTML = '';
     const playerDiv = document.createElement('div');
     playerDiv.style.width = '100%';
@@ -206,20 +198,13 @@ export default function BeatDrop() {
       playerVars: {
         autoplay: 1,
         controls: 1,
-        playsinline: 1,   // iOS inline play
+        playsinline: 1,
         rel: 0,
         modestbranding: 1,
       },
       events: {
         onStateChange: (e: any) => {
-          // YT.PlayerState.PLAYING = 1, PAUSED = 2, ENDED = 0
-          if (e.data === 1) {
-            setYtPlaying(true);
-            setDrumPlaying(true); // 유튜브 재생 시 드럼도 시작
-          } else if (e.data === 2 || e.data === 0) {
-            setYtPlaying(false);
-            setDrumPlaying(false); // 유튜브 정지 시 드럼도 정지
-          }
+          setYtPlaying(e.data === 1);
         },
       },
     });
@@ -228,9 +213,6 @@ export default function BeatDrop() {
       if (ytPlayerRef.current) {
         try { ytPlayerRef.current.destroy(); } catch {}
         ytPlayerRef.current = null;
-      }
-      if (ytPlayerContainerRef.current) {
-        ytPlayerContainerRef.current.innerHTML = '';
       }
     };
   }, [ytReady, videoId, screen]);
@@ -285,8 +267,8 @@ export default function BeatDrop() {
     setVideoId(id);
     setCurrentTrack({ title, artist: 'YouTube', bpm, videoId: id });
     setLoadingTitle(false);
-    setDrumPlaying(true); // 즉시 재생 시작
     setScreen('player');
+    setDrumPlaying(true);
   }, [urlInput, bpm, setCurrentTrack]);
 
   const handleSearch = async () => {
@@ -294,68 +276,35 @@ export default function BeatDrop() {
     setIsSearching(true);
     setUrlError('');
 
-    const query = encodeURIComponent(searchQuery);
-    const instances = [
-      'https://api.piped.private.coffee',
-      'https://pipedapi.kavin.rocks',
-      'https://piped-api.garudalinux.org'
-    ];
+    try {
+      const targetUrl = `https://api.piped.private.coffee/search?q=${encodeURIComponent(searchQuery)}&filter=all`;
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
 
-    let success = false;
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error('Search failed');
 
-    // Try multiple proxy strategies
-    const searchWithProxy = async (apiUrl: string) => {
-      // Strategy A: allorigins.win (Very stable)
-      try {
-        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`);
-        if (res.ok) {
-          const wrapper = await res.json();
-          const data = JSON.parse(wrapper.contents);
-          return data.items || [];
+      const wrapper = await res.json();
+      const data = JSON.parse(wrapper.contents);
+      const items = (data.items || []).filter((i: any) => i.type === 'stream');
+
+      if (items.length > 0) {
+        const results = items.slice(0, 8).map((i: any) => ({
+          id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+          title: i.title,
+          artist: i.uploaderName || 'YouTube'
+        })).filter((r: any) => r.id && r.id.length === 11);
+
+        if (results.length > 0) {
+          setSearchResults(results);
+          setIsSearching(false);
+          return;
         }
-      } catch (e) { console.log("Strategy A failed"); }
-
-      // Strategy B: corsproxy.io
-      try {
-        const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(apiUrl)}`);
-        if (res.ok) {
-          const data = await res.json();
-          return data.items || [];
-        }
-      } catch (e) { console.log("Strategy B failed"); }
-
-      return null;
-    };
-
-    for (const apiBase of instances) {
-      try {
-        const apiUrl = `${apiBase}/search?q=${query}&filter=all`;
-        const items = await searchWithProxy(apiUrl);
-
-        if (items && items.length > 0) {
-          const streams = items.filter((i: any) => i.type === 'stream');
-          if (streams.length > 0) {
-            const results = streams.slice(0, 8).map((i: any) => ({
-              id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-              title: i.title,
-              artist: i.uploaderName || 'YouTube'
-            })).filter((r: any) => r.id && r.id.length === 11);
-
-            if (results.length > 0) {
-              setSearchResults(results);
-              success = true;
-              break;
-            }
-          }
-        }
-      } catch (e) {
-        continue;
       }
+    } catch (e) {
+      console.error("Search failed:", e);
     }
 
-    if (!success) {
-      setUrlError('검색 서버 연결에 실패했습니다. 유튜브 링크를 직접 붙여넣거나 나중에 다시 시도해 주세요.');
-    }
+    setUrlError('검색 결과를 가져오지 못했습니다. 잠시 후 다시 시도하거나 유튜브 링크를 직접 붙여넣어 주세요.');
     setIsSearching(false);
   };
   
@@ -363,8 +312,8 @@ export default function BeatDrop() {
     setVideoId(song.id);
     setVideoTitle(song.title);
     setCurrentTrack({ title: song.title, artist: song.artist, bpm, videoId: song.id });
-    setDrumPlaying(true); // 즉시 재생 시작
     setScreen('player');
+    setDrumPlaying(true);
   };
 
   const handleRandomPlay = () => {
@@ -373,22 +322,22 @@ export default function BeatDrop() {
     setVideoTitle(song.title);
     setCurrentTrack({ title: song.title, artist: 'YouTube', bpm, videoId: song.id });
     setScreen('player');
+    setDrumPlaying(true);
   };
 
   const toggleDrum = () => {
     synth.unlock();
-    const newState = !drumPlaying;
-    setDrumPlaying(newState);
-    
-    // 유튜브 플레이어와 동기화
-    if (ytPlayerRef.current) {
-      try {
-        if (newState) ytPlayerRef.current.playVideo();
-        else ytPlayerRef.current.pauseVideo();
-      } catch (e) {}
+    setDrumPlaying(!drumPlaying);
+    if (!drumPlaying) playedRef.current.clear();
+  };
+
+  const toggleYouTube = () => {
+    if (!ytPlayerRef.current) return;
+    if (ytPlaying) {
+      ytPlayerRef.current.pauseVideo();
+    } else {
+      ytPlayerRef.current.playVideo();
     }
-    
-    if (!newState) playedRef.current.clear();
   };
 
   const handleReset = () => {
@@ -412,26 +361,21 @@ export default function BeatDrop() {
   const hitLine = 82;
 
   // ══════════════════════════════════════════════════════════════════════
-  // SCREEN 1: URL Input
+  // SCREEN 1: Input
   // ══════════════════════════════════════════════════════════════════════
   if (screen === 'input') {
     return (
       <div className="h-screen flex flex-col items-center justify-center p-6 gap-6 overflow-y-auto pt-12">
-        {/* Logo */}
         <div className="text-center space-y-2 flex-shrink-0">
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto"
             style={{ background: 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))', boxShadow: '0 0 30px var(--neon-pink)' }}>
             <Music className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)', textShadow: '0 0 15px var(--neon-pink)' }}>
-            Beat Drop
-          </h1>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--neon-pink)', textShadow: '0 0 15px var(--neon-pink)' }}>Beat Drop</h1>
           <p className="text-sm opacity-60">원하는 곡에 맞춰 드럼을 연습해보세요!</p>
         </div>
 
-        {/* Input Card */}
         <div className="w-full max-w-sm space-y-4 pb-10">
-          {/* Tabs */}
           <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
             <button className="flex-1 py-2 text-sm rounded-lg font-medium transition-all"
               onClick={() => { setInputMode('search'); setUrlError(''); }}
@@ -448,18 +392,10 @@ export default function BeatDrop() {
           {inputMode === 'link' ? (
             <div className="relative">
               <Link className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40" />
-              <input
-                type="text"
-                value={urlInput}
-                onChange={e => { setUrlInput(e.target.value); setUrlError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleSubmitUrl()}
-                placeholder="https://youtu.be/..."
+              <input type="text" value={urlInput} onChange={e => { setUrlInput(e.target.value); setUrlError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleSubmitUrl()} placeholder="https://youtu.be/..."
                 className="w-full pl-12 pr-4 py-4 rounded-2xl text-base outline-none"
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: urlError ? '2px solid var(--neon-pink)' : '1px solid rgba(255,255,255,0.15)',
-                  color: 'white',
-                }}
+                style={{ background: 'rgba(255,255,255,0.05)', border: urlError ? '2px solid var(--neon-pink)' : '1px solid rgba(255,255,255,0.15)', color: 'white' }}
               />
             </div>
           ) : (
@@ -467,12 +403,8 @@ export default function BeatDrop() {
               <div className="relative flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 opacity-40" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => { setSearchQuery(e.target.value); setUrlError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                    placeholder="곡명, 아티스트 검색"
+                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()} placeholder="곡명, 아티스트 검색"
                     className="w-full pl-12 pr-4 py-4 rounded-2xl text-base outline-none"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', color: 'white' }}
                   />
@@ -481,8 +413,6 @@ export default function BeatDrop() {
                   {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                 </button>
               </div>
-
-              {/* Search Results */}
               {searchResults.length > 0 && (
                 <div className="space-y-2 mt-4 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                   {searchResults.map(res => (
@@ -499,13 +429,8 @@ export default function BeatDrop() {
             </div>
           )}
 
-          {urlError && (
-            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm px-2" style={{ color: 'var(--neon-pink)' }}>
-              ⚠️ {urlError}
-            </motion.p>
-          )}
+          {urlError && <p className="text-sm px-2 text-pink-500">⚠️ {urlError}</p>}
 
-          {/* BPM Selector */}
           <div className="space-y-2 px-1 pt-2">
             <div className="flex justify-between text-xs opacity-60">
               <span>빠르기 (BPM)</span>
@@ -518,15 +443,8 @@ export default function BeatDrop() {
           <motion.button whileTap={{ scale: 0.97 }} onClick={inputMode === 'link' ? handleSubmitUrl : handleSearch} disabled={(inputMode === 'link' && !urlInput) || loadingTitle}
             className="w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
             style={{ background: 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))', boxShadow: '0 0 20px rgba(255,0,255,0.4)' }}>
-            {loadingTitle ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span>{inputMode === 'link' ? '연습 시작하기' : '검색하기'}</span><ArrowRight className="w-5 h-5" /></>}
+            {loadingTitle ? <Loader2 className="w-5 h-5 animate-spin" /> : <><span>시작하기</span><ArrowRight className="w-5 h-5" /></>}
           </motion.button>
-
-          <p className="text-center text-xs opacity-40 pt-4">
-            어떤 곡을 칠지 모르겠다면?{' '}
-            <button className="underline opacity-70" onClick={handleRandomPlay}>
-              최신곡 랜덤 재생 (자유 연습)
-            </button>
-          </p>
         </div>
       </div>
     );
@@ -537,125 +455,93 @@ export default function BeatDrop() {
   // ══════════════════════════════════════════════════════════════════════
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--dark-bg)' }}>
-
-      {/* YouTube Player - collapsible mini player at top */}
       <div className="flex-shrink-0 px-4 pt-4 pb-2">
         <div className="relative rounded-2xl overflow-hidden" style={{ background: 'var(--dark-surface)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          {/* YouTube iframe container */}
           <div ref={ytPlayerContainerRef} style={{ width: '100%', height: '180px' }} />
-
-          {/* Overlay info bar */}
           <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
-            <button onClick={() => { setScreen('input'); setDrumPlaying(false); }} className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm flex items-center gap-1 opacity-70">
-              ← 곡 변경
-            </button>
-            <div className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm" style={{ color: 'var(--neon-cyan)' }}>
-              {bpm} BPM
-            </div>
+            <button onClick={() => { setScreen('input'); setDrumPlaying(false); }} className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm opacity-70">← 곡 변경</button>
+            <div className="text-xs px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-cyan-400">{bpm} BPM</div>
           </div>
         </div>
       </div>
 
-      {/* Beat Track Visualizer */}
       <div className="flex-1 relative overflow-hidden mx-4 rounded-2xl" style={{ background: 'var(--dark-surface)', border: '1px solid rgba(255,255,255,0.05)' }}>
-        {/* Lane columns */}
         <div className="absolute inset-0 grid grid-cols-4">
           {LANES.map(lane => (
             <div key={lane.id} className="relative flex flex-col" style={{ borderLeft: `1px solid ${lane.color}20` }}>
-              {/* Lane label */}
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full z-10"
-                style={{ background: `${lane.color}25`, color: lane.color }}>
-                {lane.symbol}
-              </div>
-
-              {/* Falling notes */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2 py-0.5 rounded-full z-10" style={{ background: `${lane.color}25`, color: lane.color }}>{lane.symbol}</div>
               <AnimatePresence>
                 {notes.filter(n => n.lane === lane.id && n.time >= currentTime && n.time < currentTime + 32).map(note => {
                   const pct = ((note.time - currentTime) / 32) * 100;
                   return (
-                    <motion.div key={note.id}
-                      initial={{ opacity: 0, scaleX: 0.8 }}
-                      animate={{ opacity: 1, scaleX: 1 }}
-                      exit={{ opacity: 0, scaleX: 0.5 }}
+                    <motion.div key={note.id} initial={{ opacity: 0, scaleX: 0.8 }} animate={{ opacity: 1, scaleX: 1 }} exit={{ opacity: 0, scaleX: 0.5 }}
                       className="absolute left-1/2 -translate-x-1/2 rounded-xl"
-                      style={{
-                        top: `${hitLine - pct}%`,
-                        width: 40, height: 22,
-                        background: lane.color,
-                        boxShadow: `0 0 12px ${lane.color}, 0 0 24px ${lane.color}60`,
-                        border: '2px solid rgba(255,255,255,0.4)',
-                      }}
-                    />
+                      style={{ top: `${hitLine - pct}%`, width: 40, height: 22, background: lane.color, boxShadow: `0 0 12px ${lane.color}`, border: '2px solid rgba(255,255,255,0.4)' }} />
                   );
                 })}
               </AnimatePresence>
             </div>
           ))}
         </div>
-
-        {/* Hit line */}
-        <div className="absolute left-0 right-0 h-[2px] z-10 pointer-events-none"
-          style={{ top: `${hitLine}%`, background: 'linear-gradient(90deg, transparent, white 20%, white 80%, transparent)', boxShadow: '0 0 15px white, 0 0 30px var(--neon-pink)' }} />
-
-        {/* Drum sound labels */}
+        <div className="absolute left-0 right-0 h-[2px] z-10 pointer-events-none" style={{ top: `${hitLine}%`, background: 'white', boxShadow: '0 0 15px white' }} />
         <div className="absolute bottom-0 left-0 right-0 grid grid-cols-4 px-1 pb-2">
-          {LANES.map(lane => (
-            <div key={lane.id} className="text-center text-[10px] opacity-50" style={{ color: lane.color }}>{lane.name}</div>
-          ))}
+          {LANES.map(lane => (<div key={lane.id} className="text-center text-[10px] opacity-50" style={{ color: lane.color }}>{lane.name}</div>))}
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex-shrink-0 px-4 py-4 space-y-3">
-        {/* Top controls row */}
-        <div className="flex items-center gap-3">
-          {/* Play/Pause drum */}
-          <motion.button whileTap={{ scale: 0.92 }} onClick={toggleDrum}
-            className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style={{
-              background: drumPlaying ? 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))' : 'rgba(255,61,143,0.15)',
-              border: '2px solid var(--neon-pink)',
-              boxShadow: drumPlaying ? '0 0 20px var(--neon-pink)' : 'none',
-            }}>
-            {drumPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
-          </motion.button>
+      <div className="flex-shrink-0 px-4 py-4 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {/* YouTube Control */}
+            <div className="flex flex-col items-center gap-1">
+              <motion.button whileTap={{ scale: 0.92 }} onClick={toggleYouTube}
+                className="w-14 h-14 rounded-2xl flex items-center justify-center bg-white/5 border border-white/10">
+                {ytPlaying ? <Pause className="w-6 h-6 text-white" /> : <Play className="w-6 h-6 text-red-500" />}
+              </motion.button>
+              <span className="text-[8px] opacity-40 font-bold uppercase">YouTube</span>
+            </div>
 
-          {/* Mute drum sounds */}
-          <motion.button whileTap={{ scale: 0.92 }} onClick={() => setIsMuted(p => !p)}
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
-            style={{ background: isMuted ? 'rgba(255,255,255,0.05)' : 'rgba(95,251,241,0.1)', border: `1px solid ${isMuted ? 'rgba(255,255,255,0.2)' : 'var(--neon-cyan)'}` }}>
-            {isMuted ? <VolumeX className="w-5 h-5 opacity-40" /> : <Volume2 className="w-5 h-5" style={{ color: 'var(--neon-cyan)' }} />}
-          </motion.button>
+            {/* Drum Control */}
+            <div className="flex flex-col items-center gap-1">
+              <motion.button whileTap={{ scale: 0.92 }} onClick={toggleDrum}
+                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                style={{
+                  background: drumPlaying ? 'linear-gradient(135deg, var(--neon-pink), var(--neon-cyan))' : 'rgba(255,61,143,0.15)',
+                  border: '2px solid var(--neon-pink)',
+                  boxShadow: drumPlaying ? '0 0 20px var(--neon-pink)' : 'none',
+                }}>
+                {drumPlaying ? <Pause className="w-7 h-7 text-white" /> : <Play className="w-7 h-7 text-white" />}
+              </motion.button>
+              <span className="text-[8px] font-bold uppercase text-pink-500">Drum Track</span>
+            </div>
+          </div>
 
-          {/* Reset */}
-          <motion.button whileTap={{ scale: 0.92 }} onClick={handleReset}
-            className="w-12 h-12 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)' }}>
-            <RotateCcw className="w-5 h-5 opacity-50" />
-          </motion.button>
-
-          {/* BPM slider */}
-          <div className="flex-1 text-right space-y-1">
-            <div className="text-[10px] opacity-50">드럼 박자 {bpm} BPM</div>
-            <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1"
-              style={{ background: `linear-gradient(to right, var(--neon-pink) 0%, var(--neon-pink) ${((bpm - 60) / 140) * 100}%, rgba(255,0,255,0.15) ${((bpm - 60) / 140) * 100}%, rgba(255,0,255,0.15) 100%)` }} />
+          <div className="flex items-center gap-2">
+            <motion.button whileTap={{ scale: 0.92 }} onClick={() => setIsMuted(p => !p)}
+              className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/5 border border-white/10">
+              {isMuted ? <VolumeX className="w-5 h-5 opacity-40" /> : <Volume2 className="w-5 h-5 text-cyan-400" />}
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.92 }} onClick={handleReset}
+              className="w-12 h-12 rounded-xl flex items-center justify-center bg-white/5 border border-white/10">
+              <RotateCcw className="w-5 h-5 opacity-50" />
+            </motion.button>
           </div>
         </div>
 
-        {/* Tip text */}
-        {!drumPlaying && (
-          <p className="text-center text-xs opacity-40">▶ 버튼을 눌러 드럼 박자 시각화를 시작하세요</p>
-        )}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 text-right space-y-1">
+            <div className="text-[10px] opacity-50">{bpm} BPM</div>
+            <input type="range" min="60" max="200" value={bpm} onChange={e => setBpm(Number(e.target.value))} className="w-full h-1" />
+          </div>
+        </div>
 
-        {/* Finish button */}
         <motion.button whileTap={{ scale: 0.98 }} onClick={() => setShowFinishModal(true)}
           className="w-full py-3 rounded-xl text-white font-medium"
-          style={{ background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-green))', boxShadow: '0 0 12px rgba(0,255,136,0.3)' }}>
+          style={{ background: 'linear-gradient(135deg, var(--neon-cyan), var(--neon-green))' }}>
           연습 종료 및 기록하기
         </motion.button>
       </div>
 
-      {/* Finish Modal */}
       <AnimatePresence>
         {showFinishModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -663,20 +549,14 @@ export default function BeatDrop() {
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
               className="w-full max-w-sm rounded-3xl p-6 space-y-5"
               style={{ background: 'var(--dark-bg)', border: '1px solid var(--neon-pink)', boxShadow: '0 0 30px rgba(255,0,255,0.2)' }}>
-              <h3 className="text-2xl font-semibold text-center" style={{ color: 'var(--neon-pink)' }}>오늘 연습 어땠어?</h3>
+              <h3 className="text-2xl font-semibold text-center text-pink-500">오늘 연습 어땠어?</h3>
               <div className="flex justify-center gap-4 text-4xl">
                 {['😊', '😎', '🔥', '😅'].map(m => (
                   <button key={m} onClick={() => setFinishMood(m)} className="transition-transform active:scale-90"
-                    style={{ filter: finishMood === m ? 'drop-shadow(0 0 8px var(--neon-pink))' : 'grayscale(60%)' }}>
-                    {m}
-                  </button>
+                    style={{ filter: finishMood === m ? 'drop-shadow(0 0 8px var(--neon-pink))' : 'grayscale(60%)' }}>{m}</button>
                 ))}
               </div>
-              <button onClick={handleFinish} disabled={!finishMood}
-                className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-40"
-                style={{ background: 'var(--neon-pink)' }}>
-                저장하기
-              </button>
+              <button onClick={handleFinish} disabled={!finishMood} className="w-full py-3 rounded-xl text-white font-medium disabled:opacity-40" style={{ background: 'var(--neon-pink)' }}>저장하기</button>
             </motion.div>
           </motion.div>
         )}
