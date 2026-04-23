@@ -269,6 +269,7 @@ export default function BeatDrop() {
     setLoadingTitle(false);
     setScreen('player');
     setDrumPlaying(true);
+    synth.unlock(); // Awaken audio context on click
   }, [urlInput, bpm, setCurrentTrack]);
 
   const handleSearch = async () => {
@@ -314,6 +315,7 @@ export default function BeatDrop() {
     setCurrentTrack({ title: song.title, artist: song.artist, bpm, videoId: song.id });
     setScreen('player');
     setDrumPlaying(true);
+    synth.unlock();
   };
 
   const handleRandomPlay = () => {
@@ -323,6 +325,7 @@ export default function BeatDrop() {
     setCurrentTrack({ title: song.title, artist: 'YouTube', bpm, videoId: song.id });
     setScreen('player');
     setDrumPlaying(true);
+    synth.unlock();
   };
 
   const toggleDrum = () => {
