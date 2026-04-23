@@ -135,7 +135,7 @@ export default function BeatDrop() {
 
   // ── URL Input State ──
   const [screen, setScreen] = useState<'input' | 'player'>('input');
-  const [inputMode, setInputMode] = useState<'link' | 'search'>('link');
+  const [inputMode, setInputMode] = useState<'link' | 'search'>('search');
   const [urlInput, setUrlInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{id: string, title: string, artist: string}[]>([]);
@@ -357,14 +357,14 @@ export default function BeatDrop() {
           {/* Tabs */}
           <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
             <button className="flex-1 py-2 text-sm rounded-lg font-medium transition-all"
-              onClick={() => { setInputMode('link'); setUrlError(''); }}
-              style={{ background: inputMode === 'link' ? 'rgba(255,255,255,0.1)' : 'transparent', color: inputMode === 'link' ? 'var(--neon-pink)' : 'rgba(255,255,255,0.5)' }}>
-              링크 붙여넣기
-            </button>
-            <button className="flex-1 py-2 text-sm rounded-lg font-medium transition-all"
               onClick={() => { setInputMode('search'); setUrlError(''); }}
               style={{ background: inputMode === 'search' ? 'rgba(255,255,255,0.1)' : 'transparent', color: inputMode === 'search' ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.5)' }}>
               유튜브 검색
+            </button>
+            <button className="flex-1 py-2 text-sm rounded-lg font-medium transition-all"
+              onClick={() => { setInputMode('link'); setUrlError(''); }}
+              style={{ background: inputMode === 'link' ? 'rgba(255,255,255,0.1)' : 'transparent', color: inputMode === 'link' ? 'var(--neon-pink)' : 'rgba(255,255,255,0.5)' }}>
+              링크 붙여넣기
             </button>
           </div>
 
