@@ -287,7 +287,7 @@ export default function BeatDrop() {
     setIsSearching(true);
     setUrlError('');
     try {
-      const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(searchQuery + ' official')}&filter=music_songs`);
+      const res = await fetch(`https://api.piped.private.coffee/search?q=${encodeURIComponent(searchQuery + ' official')}&filter=music_songs`);
       if (!res.ok) throw new Error('Search failed');
       const data = await res.json();
       const results = data.items.filter((i: any) => i.type === 'stream').slice(0, 5).map((i: any) => ({
