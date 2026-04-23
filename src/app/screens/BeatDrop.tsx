@@ -27,8 +27,8 @@ const LANES = [
 ];
 
 const RANDOM_SONGS = [
-  { id: '8mXjNqPZ0pE', title: '아기 다람쥐 또미 (Drum Ver.)', artist: '유니 전용' },
-  { id: '3f_v8L7mSms', title: '산토끼 (Rock Style)', artist: '유니 전용' },
+  { id: 'I_vTIs7nC0A', title: '아기 다람쥐 또미 (Remix)', artist: '유니 전용' },
+  { id: 'v_v8L7mSmsY', title: '산토끼 (Rock Drum)', artist: '유니 전용' },
   { id: 'BKSiGA7fv9M', title: 'Toto - Rosanna', artist: 'Classic' },
   { id: 'G8VFOIzkg-M', title: 'Tower of Power - What is Hip?', artist: 'Funk' }
 ];
@@ -225,44 +225,38 @@ export default function BeatDrop() {
     const searchPromise = (async () => {
       const query = encodeURIComponent(searchQuery);
       const apiBases = [
+        'http://localhost:8000/api/search?q=',
         'https://pipedapi.kavin.rocks/search?filter=all&q=', 
         'https://piped-api.lunar.icu/search?filter=all&q=',
-        'https://api-piped.mha.fi/search?filter=all&q=',
-        'https://pipedapi.rivo.cc/search?filter=all&q='
+        'https://api-piped.mha.fi/search?filter=all&q='
       ];
 
-      // Try APIs one by one or in a simpler race to support older browsers
-      for (const base of apiBases) {
-        try {
-          const res = await fetch(`${base}${query}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.items) {
-              const items = data.items.filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
-                id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
-                title: i.title, artist: i.uploaderName || 'YouTube'
-              })).filter((r: any) => r.id && r.id.length === 11);
-              if (items.length > 0) return items;
+      // Fire all requests in parallel and take the first success
+      return new Promise((resolve, reject) => {
+        let finished = false;
+        apiBases.forEach(async (base) => {
+          try {
+            const res = await fetch(`${base}${query}`);
+            if (res.ok && !finished) {
+              const data = await res.json();
+              let results = null;
+              if (Array.isArray(data) && data.length > 0) results = data.slice(0, 8);
+              else if (data.items) {
+                results = data.items.filter((i: any) => i.type === 'stream').slice(0, 8).map((i: any) => ({
+                  id: i.url.split('v=')[1]?.split('&')[0] || i.url.split('/').pop(),
+                  title: i.title, artist: i.uploaderName || 'YouTube'
+                })).filter((r: any) => r.id && r.id.length === 11);
+              }
+              if (results && results.length > 0) { finished = true; resolve(results); }
             }
-          }
-        } catch (e) {}
-      }
-      
-      // Finally try local as fallback
-      try {
-        const res = await fetch(`http://localhost:8000/api/search?q=${query}`);
-        if (res.ok) return await res.json();
-      } catch (e) {}
-      
-      throw new Error('All failed');
+          } catch (e) {}
+        });
+        setTimeout(() => { if (!finished) reject(new Error('timeout')); }, 10000);
+      });
     })();
 
     try {
-      // Use simple setTimeout based race for maximum compatibility
-      const result = await Promise.race([
-        searchPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000))
-      ]);
+      const result = await searchPromise;
       setSearchResults(result as any);
     } catch (e) {
       setUrlError('검색 결과를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.');
