@@ -16,6 +16,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { currentTrack } = useTrack();
   const [stats, setStats] = useState({ streak: 0, totalMinutes: 0, lastDuration: 0 });
+  const [lastTrack, setLastTrack] = useState<{title: string, artist: string} | null>(null);
   const [dailyMessage, setDailyMessage] = useState("");
 
   useEffect(() => {
@@ -54,6 +55,12 @@ export default function Home() {
         totalMinutes: total, 
         lastDuration: lastLog.duration || 0 
       });
+      if (lastLog) {
+        setLastTrack({ 
+          title: lastLog.title || lastLog.notes.replace(' 완료!', ''), 
+          artist: lastLog.artist || 'YouTube' 
+        });
+      }
     }
   }, []);
 
@@ -162,10 +169,10 @@ export default function Home() {
                 Last Practice
               </div>
               <div className="text-xl" style={{ color: 'var(--neon-pink)', fontWeight: 'var(--font-weight-medium)' }}>
-                {currentTrack?.title || '아직 없음'}
+                {currentTrack?.title || lastTrack?.title || '아직 없음'}
               </div>
               <div className="text-sm opacity-70 mt-1" style={{ color: 'var(--foreground)' }}>
-                {currentTrack?.artist || 'Beat Drop에서 곡을 선택해 주세요'}
+                {currentTrack?.artist || lastTrack?.artist || 'Beat Drop에서 곡을 선택해 주세요'}
               </div>
             </div>
             <div className="flex flex-col items-end gap-2">

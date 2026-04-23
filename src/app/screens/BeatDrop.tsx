@@ -325,6 +325,8 @@ export default function BeatDrop() {
       date: new Date().toISOString().split('T')[0], 
       mood: finishMood, 
       duration: durationMinutes, 
+      title: videoTitle,
+      artist: currentTrack?.artist || 'YouTube',
       notes: `${videoTitle} 완료!`, 
       hasVoiceNote: false 
     };
